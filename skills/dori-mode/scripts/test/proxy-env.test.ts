@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { ensureProxyEnv, proxyFromRegistryText } from "../src/proxy-env.ts";
+import { ensureProxyEnv, envProxy, proxyFromRegistryText } from "../src/proxy-env.ts";
 
 const registry = (lines: string): string =>
   `HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings\n${lines}\n`;
@@ -34,6 +34,15 @@ test("a disabled, missing or socks-only proxy yields nothing rather than a broke
     ),
   ).toBe(undefined);
   expect(proxyFromRegistryText("")).toBe(undefined);
+});
+
+test("the proxy variable is read from the environment in a fixed order", () => {
+  expect(envProxy({ HTTPS_PROXY: "a" })).toBe("a");
+  expect(envProxy({ https_proxy: "b" })).toBe("b");
+  expect(envProxy({ ALL_PROXY: "c" })).toBe("c");
+  expect(envProxy({ all_proxy: "d" })).toBe("d");
+  expect(envProxy({ HTTPS_PROXY: "a", ALL_PROXY: "c" })).toBe("a");
+  expect(envProxy({})).toBe(undefined);
 });
 
 test("the environment is filled only when no proxy variable is set, and an existing one is never overwritten", () => {

@@ -1,4 +1,5 @@
 import type { Clock } from "../run.ts";
+import { envProxy } from "../proxy-env.ts";
 
 export type HttpRequest = {
   readonly method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -13,12 +14,21 @@ export type HttpResponse = {
 };
 export type Http = (req: HttpRequest) => Promise<HttpResponse>;
 
+// Bun reads the proxy environment at process start, so a proxy set at run time must be passed explicitly.
 export const fetchHttp: Http = async (req) => {
-  const res = await fetch(req.url, { method: req.method, headers: req.headers, body: req.body });
+  const proxy = envProxy();
+  const res = await fetch(req.url, {
+    method: req.method,
+    headers: req.headers,
+    body: req.body,
+    ...(proxy ? { proxy } : {}),
+  });
   const headers: Record<string, string> = {};
   res.headers.forEach((v, k) => {
     headers[k.toLowerCase()] = v;
   });
+  // A 204/205/304 has no body; reading it hangs behind a proxy on Bun, and Discord answers a reaction with 204.
+  if (res.status === 204 || res.status === 205 || res.status === 304) return { status: res.status, headers, body: "" };
   return { status: res.status, headers, body: await res.text() };
 };
 

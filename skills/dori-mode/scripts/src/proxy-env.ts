@@ -34,11 +34,14 @@ export const readWindowsProxy = (): string | undefined => {
   }
 };
 
+export const envProxy = (env: NodeJS.ProcessEnv = process.env): string | undefined =>
+  env["HTTPS_PROXY"] ?? env["https_proxy"] ?? env["ALL_PROXY"] ?? env["all_proxy"];
+
 export const ensureProxyEnv = (
   env: NodeJS.ProcessEnv = process.env,
   read: () => string | undefined = readWindowsProxy,
 ): void => {
-  if (env["HTTPS_PROXY"] || env["https_proxy"] || env["ALL_PROXY"] || env["all_proxy"]) return;
+  if (envProxy(env)) return;
   const proxy = read();
   if (proxy) env["HTTPS_PROXY"] = proxy;
 };

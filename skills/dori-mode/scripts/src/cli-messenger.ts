@@ -1,6 +1,6 @@
 /** dori send, presence, inbound and transcribe: the messengers. */
 import { type Command, die, envSlackToken, every, slackAuth } from "./cli-context.ts";
-import { discordInbound, discordProxy, discordReact, discordThread } from "./cli-discord.ts";
+import { discordInbound, discordReact, discordThread } from "./cli-discord.ts";
 import { Discord, discordPresence } from "./messenger/discord.ts";
 import { Feishu } from "./messenger/feishu.ts";
 import {
@@ -18,6 +18,7 @@ import { Telegram } from "./messenger/telegram.ts";
 import { envInt, fileTgInboundStore, telegramInboundLoop } from "./messenger/telegram-inbound.ts";
 import { formatTelegramInbound } from "./messenger/telegram-line.ts";
 import { ThreadLedger } from "./messenger/thread-ledger.ts";
+import { envProxy } from "./proxy-env.ts";
 import { realTimers } from "./messenger/typing.ts";
 import { transcribe, TranscriptionError } from "./messenger/voice.ts";
 import { realClock, run } from "./run.ts";
@@ -114,7 +115,7 @@ const presence: Command = async ({ key }) => {
     discordPresence(
       () => {
         const url = "wss://gateway.discord.gg/?v=10&encoding=json";
-        const via = discordProxy();
+        const via = envProxy();
         const ws = new WebSocket(url, via === undefined ? undefined : { proxy: via });
         let handler: (d: string) => void = () => {};
         ws.addEventListener("message", (e) => handler(String(e.data)));
