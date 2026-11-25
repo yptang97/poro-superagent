@@ -93,7 +93,10 @@ if (-not $NoLead -and $herdrUp) {
 
 ## 值守
 1. 立刻挂一个常驻 monitor 盯住 $logDir\inbound.log，只上报以 INBOUND 开头的行。
-2. 每收到一条：确认 sender 是主人（配置 $configFile 的 feishu.ownerId），然后用
+2. 每收到一条：确认 sender 是主人（配置 $configFile 的 feishu.ownerId）。
+   先给这条消息加"敲键盘"表情，表示已收到：
+   "$bunPath" "$cli" react feishu --message <message_id> --emoji Typing
+   再用
    "$bunPath" "$cli" send feishu --to $chatId --thread <message_id> --text "回复内容"
    回到同一个会话。
 3. 没有消息时保持安静：不主动开工、不轮询、不自己找活干。

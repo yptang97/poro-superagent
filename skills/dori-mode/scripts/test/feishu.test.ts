@@ -46,6 +46,13 @@ test("feishu reply and edit use the bot-only shortcuts", async () => {
   expect(calls[1]?.slice(4, 7)).toEqual(["+messages-edit", "--message-id", "om_new"]);
 });
 
+test("feishu react adds the emoji through the reactions API", async () => {
+  const { run, calls } = recorder(() => ok({ ok: true, data: { reaction_id: "zhr_1" } }));
+  expect(await new Feishu(run, { profile: "dori" }).react("om_msg", "Typing")).toBe("zhr_1");
+  expect(calls[0]?.slice(4, 7)).toEqual(["reactions", "create", "--message-id"]);
+  expect(calls[0]).toContain(JSON.stringify({ reaction_type: { emoji_type: "Typing" } }));
+});
+
 test("without a profile the active lark-cli profile is used", async () => {
   const { run, calls } = recorder(() => ok({ ok: true, data: { message_id: "om_x" } }));
   await new Feishu(run).send({ chatId: "oc_1" }, "hi");

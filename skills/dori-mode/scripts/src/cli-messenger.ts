@@ -219,8 +219,18 @@ const inbound: Command = async ({ key, loopMinutes, config }) => {
   });
 };
 
+const react: Command = async ({ key, need, opt, config }) => {
+  if (key !== "feishu") die("react supports feishu");
+  const messageId = need("message");
+  const emoji = opt("emoji") || "Typing";
+  const profile = feishuProfile(config);
+  const feishu = new Feishu(run, profile === undefined ? {} : { profile });
+  console.log(`REACTED ${await feishu.react(messageId, emoji)}`);
+};
+
 export const messengerCommands: Readonly<Record<string, Command>> = {
   send,
+  react,
   presence,
   inbound,
   transcribe: async ({ key, config }) => {

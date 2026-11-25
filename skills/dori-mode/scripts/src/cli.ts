@@ -56,6 +56,8 @@ const USAGE = `dori <command> [options]
   can-launch                           exit 0 if the host has room for a new lane, else print why and exit 4
   send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]
                                        post, reply or edit a message (tokens from DORI_SLACK_TOKEN or the file DORI_SLACK_TOKEN_FILE names, DORI_TELEGRAM_TOKEN, DORI_DISCORD_TOKEN; Feishu uses DORI_FEISHU_PROFILE)
+  react feishu --message ID [--emoji TYPE]
+                                       add the emoji reaction marking a message as received (default Typing)
   presence <slack|discord|feishu>      keep the account shown as online until stopped
   transcribe <audio-file>              run hooks.transcribe and print the text
   inbound slack|telegram|feishu [--loop MIN]
@@ -91,6 +93,8 @@ const flags = parseArgs({
     to: { type: "string" },
     text: { type: "string" },
     edit: { type: "string" },
+    message: { type: "string" },
+    emoji: { type: "string" },
     kind: { type: "string" },
     step: { type: "string" },
     result: { type: "string" },
