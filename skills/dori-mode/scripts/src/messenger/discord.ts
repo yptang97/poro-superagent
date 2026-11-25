@@ -18,7 +18,11 @@ export class Discord {
     private readonly base = "https://discord.com/api/v10",
   ) {}
 
-  async call<T = unknown>(method: "GET" | "POST" | "PATCH", path: string, body?: Record<string, unknown>): Promise<T> {
+  async call<T = unknown>(
+    method: "GET" | "POST" | "PATCH" | "PUT",
+    path: string,
+    body?: Record<string, unknown>,
+  ): Promise<T> {
     const res = await withBackoff(
       this.http,
       this.clock,
@@ -51,6 +55,10 @@ export class Discord {
 
   async typing(channelId: string): Promise<void> {
     await this.call("POST", `/channels/${channelId}/typing`);
+  }
+
+  async react(channelId: string, messageId: string, emoji: string): Promise<void> {
+    await this.call("PUT", `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`);
   }
 
   async startThread(channelId: string, messageId: string, name: string): Promise<string> {

@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { fileSeenStore, type SeenStore } from "./seen-store.ts";
 
 /**
  * Feishu inbound through `lark-cli event consume im.message.receive_v1 --as bot`. The CLI keeps the WebSocket long
@@ -28,9 +27,7 @@ export type FeishuInboundOptions = {
   readonly chatId?: string;
 };
 
-export type FeishuSeenStore = { has(id: string): boolean; add(id: string): void };
-
-const MAX_SEEN_IDS = 1000;
+export type FeishuSeenStore = SeenStore;
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
 
@@ -96,39 +93,8 @@ export type FeishuChild = {
   kill(): void;
 };
 
-export const fileFeishuSeenStore = (path: string, warn: (message: string) => void = () => {}): FeishuSeenStore => {
-  let warned = false;
-  let ids: Set<string> | undefined;
-  const load = (): Set<string> => {
-    if (ids) return ids;
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
-      ids = new Set(Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : []);
-      if (!Array.isArray(parsed) && !warned) {
-        warned = true;
-        warn(`feishu-seen at ${path} is not a JSON array; starting empty`);
-      }
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== "ENOENT" && !warned) {
-        warned = true;
-        warn(`feishu-seen at ${path} is unreadable; starting empty`);
-      }
-      ids = new Set();
-    }
-    return ids;
-  };
-  return {
-    has: (id) => load().has(id),
-    add(id) {
-      const set = load();
-      set.add(id);
-      const kept = [...set].slice(-MAX_SEEN_IDS);
-      ids = new Set(kept);
-      mkdirSync(dirname(path), { recursive: true });
-      writeFileSync(path, JSON.stringify(kept));
-    },
-  };
-};
+export const fileFeishuSeenStore = (path: string, warn: (message: string) => void = () => {}): FeishuSeenStore =>
+  fileSeenStore(path, "feishu-seen", warn);
 
 /** One parseable line for the lead's monitor; text stays data and is JSON-quoted. */
 export const formatFeishuInbound = (i: FeishuInbound): string => {
@@ -222,7 +188,9 @@ export const feishuInboundLoop = async (
       })();
       const [code] = await Promise.all([child.exited, stderr, stdout]);
       if (signal.aborted) return;
-      warn(`feishu event stream exited ${code}${sawEvent ? "" : " before any event"}; reconnecting in ${opts.restartMin} min`);
+      warn(
+        `feishu event stream exited ${code}${sawEvent ? "" : " before any event"}; reconnecting in ${opts.restartMin} min`,
+      );
     } finally {
       process.off("SIGINT", stop);
       process.off("SIGTERM", stop);

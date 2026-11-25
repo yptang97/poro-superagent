@@ -155,3 +155,11 @@ test("Discord messages are sent without pinging anyone and edited in place; thre
     "PATCH /channels/T1",
   ]);
 });
+
+test("a Discord reaction targets the message in its own channel and encodes the emoji", async () => {
+  const { http, seen } = fakeHttp(() => ({ status: 204, headers: {}, body: "" }));
+  await new Discord(http, sleeps().clock, "b").react("C1", "M1", "👀");
+  expect(seen.map((r) => `${r.method} ${r.url.replace("https://discord.com/api/v10", "")}`)).toEqual([
+    "PUT /channels/C1/messages/M1/reactions/%F0%9F%91%80/@me",
+  ]);
+});

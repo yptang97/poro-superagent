@@ -1,5 +1,6 @@
 /** dori send, presence, inbound and transcribe: the messengers. */
 import { type Command, die, envSlackToken, every, slackAuth } from "./cli-context.ts";
+import { discordInbound, discordReact, discordThread } from "./cli-discord.ts";
 import { Discord, discordPresence } from "./messenger/discord.ts";
 import { Feishu } from "./messenger/feishu.ts";
 import {
@@ -166,7 +167,10 @@ const telegramInbound = async (stateDir: string, minutes: number): Promise<void>
 };
 
 const feishuInbound = async (
-  config: { readonly stateDir: string; readonly feishu: { readonly profile?: string; readonly ownerId?: string; readonly chatId?: string } },
+  config: {
+    readonly stateDir: string;
+    readonly feishu: { readonly profile?: string; readonly ownerId?: string; readonly chatId?: string };
+  },
   minutes: number,
 ): Promise<void> => {
   const profile = feishuProfile(config);
@@ -198,9 +202,10 @@ const feishuInbound = async (
 
 const inbound: Command = async ({ key, loopMinutes, config }) => {
   const minutes = loopMinutes();
+  if (key === "discord") return await discordInbound(minutes, config.stateDir);
   if (key === "telegram") return await telegramInbound(config.stateDir, minutes);
   if (key === "feishu") return await feishuInbound(config, minutes);
-  if (key !== "slack") die("inbound supports slack, telegram or feishu");
+  if (key !== "slack") die("inbound supports slack, telegram, feishu or discord");
   const auth = slackAuth(envSlackToken() ?? die(NO_SLACK_TOKEN));
   const ledger = new ThreadLedger(`${config.stateDir}/slack-threads.json`);
   const slack = new Slack(fetchHttp, realClock, auth, undefined, ledger);
@@ -219,8 +224,10 @@ const inbound: Command = async ({ key, loopMinutes, config }) => {
   });
 };
 
-const react: Command = async ({ key, need, opt, config }) => {
-  if (key !== "feishu") die("react supports feishu");
+const react: Command = async (cli) => {
+  const { key, need, opt, config } = cli;
+  if (key === "discord") return await discordReact(cli);
+  if (key !== "feishu") die("react supports feishu or discord");
   const messageId = need("message");
   const emoji = opt("emoji") || "Typing";
   const profile = feishuProfile(config);
@@ -231,6 +238,7 @@ const react: Command = async ({ key, need, opt, config }) => {
 export const messengerCommands: Readonly<Record<string, Command>> = {
   send,
   react,
+  thread: discordThread,
   presence,
   inbound,
   transcribe: async ({ key, config }) => {

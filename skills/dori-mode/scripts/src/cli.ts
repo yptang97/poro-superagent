@@ -56,12 +56,15 @@ const USAGE = `dori <command> [options]
   can-launch                           exit 0 if the host has room for a new lane, else print why and exit 4
   send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]
                                        post, reply or edit a message (tokens from DORI_SLACK_TOKEN or the file DORI_SLACK_TOKEN_FILE names, DORI_TELEGRAM_TOKEN, DORI_DISCORD_TOKEN; Feishu uses DORI_FEISHU_PROFILE)
-  react feishu --message ID [--emoji TYPE]
-                                       add the emoji reaction marking a message as received (default Typing)
+  react <feishu|discord> --message ID [--to CHANNEL] [--emoji TYPE]
+                                       add the emoji reaction marking a message as received (Feishu default Typing, Discord default 👀)
+  thread start --to CHANNEL --message ID --name NAME
+  thread rename|archive|reopen THREAD [--name NAME]
+                                       Discord threads: start one on a message, then rename, archive or reopen it
   presence <slack|discord|feishu>      keep the account shown as online until stopped
   transcribe <audio-file>              run hooks.transcribe and print the text
-  inbound slack|telegram|feishu [--loop MIN]
-                                       print INBOUND lines: Slack unread thread replies / Telegram owner DMs / Feishu owner messages (long connection)`;
+  inbound slack|telegram|feishu|discord [--loop MIN]
+                                       print INBOUND lines: Slack unread thread replies / Telegram owner DMs / Feishu owner messages (long connection) / Discord owner messages (gateway)`;
 
 const config = await loadConfig().catch((e: unknown) =>
   e instanceof ConfigError ? die(e.message) : Promise.reject(e),
@@ -88,6 +91,7 @@ const flags = parseArgs({
     evidence: { type: "string" },
     reason: { type: "string", multiple: true },
     note: { type: "string" },
+    name: { type: "string" },
     write: { type: "boolean" },
     loop: { type: "string" },
     to: { type: "string" },
