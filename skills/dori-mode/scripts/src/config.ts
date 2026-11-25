@@ -13,6 +13,15 @@ export type Hooks = {
   readonly transcribe?: ArgvTemplate;
 };
 
+/** Feishu is driven through the `lark-cli` binary and a saved app profile. */
+export type FeishuConfig = {
+  readonly profile: string;
+  /** The owner's open_id under this app; only this sender is a request. */
+  readonly ownerId?: string;
+  /** Optional chat gate: deliver only this chat's owner messages. */
+  readonly chatId?: string;
+};
+
 /** The local-git flow: task branch, local PR summary, owner approval, merge into the base branch. */
 export type GitConfig = {
   /** Absolute repo roots or worktree parents the Dori may land in; empty means no restriction. */
@@ -59,6 +68,7 @@ export type DoriConfig = {
   /** Expected Git author and committer per lowercase `owner/repo`, for `verify-pr` and the lane footer. */
   readonly repoIdentities: Readonly<Record<string, CommitIdentity>>;
   readonly supervision: SupervisionOptions;
+  readonly feishu: FeishuConfig;
   readonly git: GitConfig;
 };
 
@@ -84,6 +94,7 @@ export const defaultConfig = (home = homedir()): DoriConfig => ({
   guard: { loadAlert: 150, loadOk: 80, memFreeMinPct: 20, diskFreeMinGb: 50, panesMax: 20 },
   hooks: {},
   repoIdentities: {},
+  feishu: { profile: "poro" },
   git: { repos: [], baseBranch: "main", branchPrefix: "", pull: true, mergeMode: "no-ff" },
   supervision: {
     hungAfterMinutes: 20,
@@ -118,6 +129,20 @@ const repoIdentities = (value: unknown): Record<string, CommitIdentity> =>
           isIdentity(identity) ? [[repo.toLowerCase(), identity]] : [],
         ),
       );
+
+const FEISHU_KEYS = new Set(["profile", "ownerId", "chatId"]);
+const checkFeishu = (value: unknown): void => {
+  if (value === undefined) return;
+  if (!isRecord(value)) throw new ConfigError("invalid feishu: expected an object");
+  for (const name of Object.keys(value)) {
+    if (!FEISHU_KEYS.has(name)) throw new ConfigError(`invalid feishu ${name}: unknown setting`);
+  }
+  for (const name of FEISHU_KEYS) {
+    const v = value[name];
+    if (v !== undefined && (typeof v !== "string" || !v.trim()))
+      throw new ConfigError(`invalid feishu ${name}: expected a non-empty string`);
+  }
+};
 
 const MERGE_MODES = new Set(["no-ff", "ff-only", "squash"]);
 const checkGit = (value: unknown): void => {
@@ -216,6 +241,7 @@ export const loadConfig = async (path = configPath(), home = homedir()): Promise
   const raw = (await file.exists()) ? ((await file.json()) as Partial<DoriConfig>) : {};
   checkRuntime(raw.runtime);
   checkSupervision(raw.supervision);
+  checkFeishu(raw.feishu);
   checkGit(raw.git);
   const rawGit = raw.git;
   const merged: DoriConfig = {
@@ -223,6 +249,7 @@ export const loadConfig = async (path = configPath(), home = homedir()): Promise
     ...raw,
     guard: { ...base.guard, ...raw.guard },
     hooks: { ...base.hooks, ...raw.hooks },
+    feishu: { ...base.feishu, ...(raw.feishu ?? {}) },
     git: {
       ...base.git,
       ...(rawGit ?? {}),
@@ -267,6 +294,15 @@ export const loadConfig = async (path = configPath(), home = homedir()): Promise
     ...merged,
     stateDir: expandHome(process.env["DORI_STATE_DIR"] ?? merged.stateDir, home),
     defaultCwd: expandHome(merged.defaultCwd, home),
+    feishu: {
+      profile: process.env["DORI_FEISHU_PROFILE"] ?? merged.feishu.profile,
+      ...(process.env["DORI_FEISHU_OWNER_ID"] ?? merged.feishu.ownerId
+        ? { ownerId: process.env["DORI_FEISHU_OWNER_ID"] ?? merged.feishu.ownerId }
+        : {}),
+      ...(process.env["DORI_FEISHU_CHAT_ID"] ?? merged.feishu.chatId
+        ? { chatId: process.env["DORI_FEISHU_CHAT_ID"] ?? merged.feishu.chatId }
+        : {}),
+    },
     git: {
       ...merged.git,
       repos: merged.git.repos.map((p) => expandHome(p, home)),

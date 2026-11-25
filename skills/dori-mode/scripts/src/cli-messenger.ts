@@ -1,6 +1,14 @@
 /** dori send, presence, inbound and transcribe: the messengers. */
 import { type Command, die, envSlackToken, every, slackAuth } from "./cli-context.ts";
 import { Discord, discordPresence } from "./messenger/discord.ts";
+import { Feishu } from "./messenger/feishu.ts";
+import {
+  feishuConsumeArgv,
+  type FeishuChild,
+  feishuInboundLoop,
+  fileFeishuSeenStore,
+  formatFeishuInbound,
+} from "./messenger/feishu-inbound.ts";
 import { fetchHttp, MessengerError, UnsafeMessageError } from "./messenger/http.ts";
 import { Slack } from "./messenger/slack.ts";
 import { pollSlackInbound } from "./messenger/slack-inbound.ts";
@@ -16,10 +24,19 @@ import { realClock, run } from "./run.ts";
 /** Messenger errors are one line, never a stack. */
 export const messengerErrors = [MessengerError, UnsafeMessageError, TranscriptionError] as const;
 
+const feishuProfile = (config: { readonly feishu: { readonly profile: string } }): string =>
+  process.env["DORI_FEISHU_PROFILE"] ?? config.feishu.profile;
+
+const feishuOwner = (config: { readonly feishu: { readonly ownerId?: string } }): string | undefined =>
+  process.env["DORI_FEISHU_OWNER_ID"] ?? config.feishu.ownerId;
+
+const feishuChat = (config: { readonly feishu: { readonly chatId?: string } }): string | undefined =>
+  process.env["DORI_FEISHU_CHAT_ID"] ?? config.feishu.chatId;
+
 const NO_SLACK_TOKEN = "DORI_SLACK_TOKEN is not set (nor DORI_SLACK_TOKEN_FILE)";
 
 const send: Command = async ({ key, need, opt, values, config }) => {
-  const platform = key ?? die("send needs slack, telegram or discord");
+  const platform = key ?? die("send needs slack, telegram, discord or feishu");
   const to = need("to");
   const text = need("text");
   const token = (name: string) => process.env[name] ?? die(`${name} is not set`);
@@ -61,6 +78,13 @@ const send: Command = async ({ key, need, opt, values, config }) => {
     const dc = new Discord(fetchHttp, realClock, token("DORI_DISCORD_TOKEN"));
     if (messageId !== undefined) await dc.edit(to, messageId, text);
     else console.log(`SENT ${await dc.send(thread ?? to, text)}`);
+  } else if (platform === "feishu") {
+    const messageId = present("edit");
+    const thread = present("thread");
+    const feishu = new Feishu(run, { profile: feishuProfile(config) });
+    if (messageId !== undefined) await feishu.edit(messageId, text);
+    else if (thread !== undefined) console.log(`SENT ${await feishu.reply(thread, text)}`);
+    else console.log(`SENT ${await feishu.send({ chatId: to }, text)}`);
   } else die(`unknown platform ${platform}`);
 };
 
@@ -103,7 +127,9 @@ const presence: Command = async ({ key }) => {
     );
     console.log("PRESENCE_READY discord");
     await new Promise(() => {});
-  } else die("presence needs slack or discord");
+  } else if (key === "feishu") {
+    console.log("PRESENCE_READY feishu");
+  } else die("presence needs slack, discord or feishu");
 };
 
 const telegramInbound = async (stateDir: string, minutes: number): Promise<void> => {
@@ -138,10 +164,42 @@ const telegramInbound = async (stateDir: string, minutes: number): Promise<void>
   );
 };
 
+const feishuInbound = async (
+  config: { readonly stateDir: string; readonly feishu: { readonly profile: string; readonly ownerId?: string; readonly chatId?: string } },
+  minutes: number,
+): Promise<void> => {
+  const profile = feishuProfile(config);
+  const ownerId = feishuOwner(config);
+  const chatId = feishuChat(config);
+  const store = fileFeishuSeenStore(`${config.stateDir}/feishu-seen.json`, (m) =>
+    console.log(`WARN ${m}`.slice(0, 300)),
+  );
+  await feishuInboundLoop(
+    () =>
+      Bun.spawn(feishuConsumeArgv(profile), {
+        // lark-cli treats stdin EOF as a shutdown signal; keep a pipe open for the life of the consumer.
+        stdin: "pipe",
+        stdout: "pipe",
+        stderr: "pipe",
+      }) as unknown as FeishuChild,
+    {
+      ...(ownerId !== undefined ? { ownerId } : {}),
+      ...(chatId !== undefined ? { chatId } : {}),
+      restartMin: minutes,
+      store,
+      emit: (i) => console.log(formatFeishuInbound(i)),
+      ready: () =>
+        console.log(`INBOUND_READY feishu profile=${profile} owner=${ownerId ?? "-"} chat=${chatId ?? "-"}`),
+      warn: (m) => console.log(`WARN ${m}`.slice(0, 300)),
+    },
+  );
+};
+
 const inbound: Command = async ({ key, loopMinutes, config }) => {
   const minutes = loopMinutes();
   if (key === "telegram") return await telegramInbound(config.stateDir, minutes);
-  if (key !== "slack") die("inbound supports slack or telegram");
+  if (key === "feishu") return await feishuInbound(config, minutes);
+  if (key !== "slack") die("inbound supports slack, telegram or feishu");
   const auth = slackAuth(envSlackToken() ?? die(NO_SLACK_TOKEN));
   const ledger = new ThreadLedger(`${config.stateDir}/slack-threads.json`);
   const slack = new Slack(fetchHttp, realClock, auth, undefined, ledger);
