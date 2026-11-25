@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
 
 import { Feishu } from "../src/messenger/feishu.ts";
 import { MessengerError, UnsafeMessageError } from "../src/messenger/http.ts";
@@ -36,6 +37,33 @@ test("feishu send goes through lark-cli with the configured profile and returns 
   ]);
 });
 
+test("a multi-line text travels as a temp file, because Bun cuts an argv value at the newline on Windows", async () => {
+  const text = "第一行\n\n第二行：这段不能丢";
+  let seen = "";
+  let path = "";
+  const run: Runner = async (argv) => {
+    const at = argv.indexOf("--text") + 1;
+    const value = argv[at] ?? "";
+    if (value.startsWith("@")) {
+      path = value.slice(1);
+      seen = readFileSync(path, "utf8");
+    } else {
+      seen = value;
+    }
+    return ok({ ok: true, data: { message_id: "om_multi" } });
+  };
+  expect(await new Feishu(run, { profile: "dori" }).send({ chatId: "oc_1" }, text)).toBe("om_multi");
+  expect(path).not.toBe("");
+  expect(seen).toBe(text);
+  expect(existsSync(path)).toBe(false);
+});
+
+test("a short single-line text stays on the command line", async () => {
+  const { run, calls } = recorder(() => ok({ ok: true, data: { message_id: "om_one" } }));
+  await new Feishu(run, { profile: "dori" }).send({ chatId: "oc_1" }, "收到");
+  expect(calls[0]?.[calls[0].indexOf("--text") + 1]).toBe("收到");
+});
+
 test("feishu reply and edit use the bot-only shortcuts", async () => {
   const { run, calls } = recorder(() => ok({ ok: true, data: { message_id: "om_new" } }));
   const feishu = new Feishu(run, { profile: "dori" });
@@ -60,12 +88,8 @@ test("without a profile the active lark-cli profile is used", async () => {
 });
 
 test("a Feishu error keeps the API message and code", async () => {
-  const { run } = recorder(() =>
-    ok({ ok: false, error: { code: 99991672, message: "access denied: missing scope" } }),
-  );
-  const err = await new Feishu(run, { profile: "dori" })
-    .send({ chatId: "oc_1" }, "hi")
-    .catch((e: unknown) => e);
+  const { run } = recorder(() => ok({ ok: false, error: { code: 99991672, message: "access denied: missing scope" } }));
+  const err = await new Feishu(run, { profile: "dori" }).send({ chatId: "oc_1" }, "hi").catch((e: unknown) => e);
   expect(err).toBeInstanceOf(MessengerError);
   expect((err as MessengerError).message).toContain("missing scope");
   expect((err as MessengerError).code).toBe("99991672");

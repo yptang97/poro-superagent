@@ -1,5 +1,21 @@
+import { rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import type { Runner } from "../run.ts";
 import { guardText, MessengerError } from "./http.ts";
+
+type FeishuText = { readonly value: string; readonly cleanup: () => void };
+
+const INLINE_LIMIT = 4_000;
+
+/** Bun cuts a multi-line argv value at the first newline when it spawns a non-Bun child on Windows, so long or multi-line text travels as a temp file that lark-cli reads through `@path`. */
+const textArg = (text: string): FeishuText => {
+  if (!text.includes("\n") && text.length <= INLINE_LIMIT) return { value: text, cleanup: () => {} };
+  const path = join(tmpdir(), `dori-feishu-${process.pid}-${crypto.randomUUID()}.txt`);
+  writeFileSync(path, text, "utf8");
+  return { value: `@${path}`, cleanup: () => rmSync(path, { force: true }) };
+};
 
 /**
  * Feishu through `lark-cli`. The CLI owns the app credentials and the tenant token, so this module passes messages as
@@ -27,16 +43,7 @@ export class Feishu {
 
   private argv(tail: readonly string[]): string[] {
     const profile = this.opts.profile?.trim();
-    return [
-      "lark-cli",
-      ...(profile ? ["--profile", profile] : []),
-      "im",
-      ...tail,
-      "--as",
-      "bot",
-      "--format",
-      "json",
-    ];
+    return ["lark-cli", ...(profile ? ["--profile", profile] : []), "im", ...tail, "--as", "bot", "--format", "json"];
   }
 
   private async call(tail: readonly string[], what: string): Promise<FeishuResult> {
@@ -60,9 +67,19 @@ export class Feishu {
     return body;
   }
 
+  private async withText(text: string, tail: (value: string) => string[], what: string): Promise<FeishuResult> {
+    const arg = textArg(guardText(text));
+    try {
+      return await this.call(tail(arg.value), what);
+    } finally {
+      arg.cleanup();
+    }
+  }
+
   async send(target: FeishuTarget, text: string): Promise<string> {
-    const body = await this.call(
-      ["+messages-send", "--chat-id", target.chatId, "--text", guardText(text)],
+    const body = await this.withText(
+      text,
+      (value) => ["+messages-send", "--chat-id", target.chatId, "--text", value],
       "send",
     );
     const id = body.data?.message_id;
@@ -72,13 +89,14 @@ export class Feishu {
 
   /** Reply to one message. In a p2p chat this is a normal reply; in a topic chat it stays in that message's thread. */
   async reply(messageId: string, text: string, inThread = false): Promise<string> {
-    const body = await this.call(
-      [
+    const body = await this.withText(
+      text,
+      (value) => [
         "+messages-reply",
         "--message-id",
         messageId,
         "--text",
-        guardText(text),
+        value,
         ...(inThread ? ["--reply-in-thread"] : []),
       ],
       "reply",
@@ -108,6 +126,6 @@ export class Feishu {
 
   /** Edit a message this bot sent. Feishu's edit API accepts bot identity only. */
   async edit(messageId: string, text: string): Promise<void> {
-    await this.call(["+messages-edit", "--message-id", messageId, "--text", guardText(text)], "edit");
+    await this.withText(text, (value) => ["+messages-edit", "--message-id", messageId, "--text", value], "edit");
   }
 }
