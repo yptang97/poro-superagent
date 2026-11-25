@@ -43,5 +43,18 @@
     "threadReply": ["my-messenger", "reply", "--thread", "{thread}", "--text", "{text}"],
     "threadDone": ["my-messenger", "set-status", "--thread", "{thread}", "--status", "done", "--note", "{text}"],
     "transcribe": ["my-stt", "--file", "{file}"]
+  },
+  "feishu": {
+    "profile": "poro",
+    "ownerId": "ou_your_open_id",
+    "chatId": "oc_your_chat_id"
+  },
+  "git": {
+    "repos": ["~/code/my-project"],
+    "baseBranch": "main",
+    "branchPrefix": "",
+    "pull": true,
+    "mergeMode": "no-ff",
+    "testCommand": ["bun", "test"]
   }
 }

@@ -24,7 +24,18 @@ hc --skill                          # load its skill unless it is already in you
 
 `notes = false` stops hc from typing notes into a parent agent on its own, so the Dori's own sends are the only text that reaches a lane. With both installed, the Dori runs on hc unless `"runtime": "herdr"` is set in step 4; with only one on PATH, it uses that one.
 
-## 2. Messenger
+## 2. Messenger (Feishu in this fork)
+
+This fork talks to Feishu through `lark-cli`, not agent-messenger. Add the app as an isolated profile once, feeding the secret on stdin so it never reaches shell history:
+
+```sh
+printf '%s' "$FEISHU_APP_SECRET" | lark-cli profile add --name poro --app-id "$FEISHU_APP_ID" --app-secret-stdin
+lark-cli --profile poro auth status   # bot identity: ready
+```
+
+The profile holds the tenant token; the app secret is never written to this repository. `~/.dori/config.json` names the profile under `feishu.profile`. The bot needs the IM message scopes (send, reply, edit, receive events) and `im.message.receive_v1` enabled in long-connection mode. Put the owner's open_id under this app in `feishu.ownerId`; `dori inbound feishu` drops everyone else. `feishu.chatId` optionally pins one chat. If lark-cli prints a console-precheck warning about `application:application:self_manage`, it only means it cannot read the app metadata; the IM long connection still works.
+
+## 2b. Other messengers (optional)
 
 Install agent-messenger (github.com/agent-messenger/agent-messenger) and read which platforms it supports. Ask the owner which one to use and wait for the answer.
 
@@ -48,9 +59,11 @@ Ask which mode, give the trade-off as a short list, and wait for the choice:
 
 Record the choice. With a user token, set `DORI_SLACK_TOKEN` and `DORI_SLACK_COOKIE` (the `d` cookie from that member's browser session). With a bot token, set `DORI_SLACK_TOKEN` to the `xoxb-` token. If you run a second Dori home on the same machine, also write that home's token to `slack-token` next to its `config.json` (`chmod 600`): `dori launch` then hands its lanes the file's path, never the token (see `dori launch` in `scripts.md`).
 
-## 3. Bot
+## 3. Bot (Feishu in this fork)
 
-Finish every login in the browser. Create the bot with agent-messenger and finish its setup. Then give it its avatar: the default is `assets/dori-avatar.png` in this skill, and the owner can swap in any image.
+Create the `poro` bot in the Feishu developer console and set its avatar there. Send it one DM from the owner account, run `dori inbound feishu --loop 1`, and confirm one `INBOUND` line. Then greet the owner with `dori send feishu --to <chat_id> --text "..."`.
+
+The same step for other platforms (optional). Finish every login in the browser. Create the bot with agent-messenger and finish its setup. Then give it its avatar: the default is `assets/dori-avatar.png` in this skill, and the owner can swap in any image.
 
 - **Telegram**: @BotFather → `/setuserpic` → pick the bot → send the image.
 - **Discord**: Developer Portal → your application → **General Information** → App Icon, and **Bot** → Icon.
@@ -67,7 +80,7 @@ cd skills/dori-mode/scripts && bun install && bun link    # puts `dori` on PATH
 mkdir -p ~/.dori && cp ../references/config.example.json ~/.dori/config.json
 ```
 
-Then edit `~/.dori/config.json`: at least `runtime` (`"herdr"` or `"hc"`), `leadPane` (your own session: `herdr pane current` on herdr, `echo $HC_TERMINAL_ID` on hc), `laneWorkspace` (a herdr workspace; on hc, the `dori.group` label the lane terminals get), `defaultCwd`, and the two hooks if you want lane threads updated automatically. `references/scripts.md` explains every field.
+Then edit `~/.dori/config.json`: at least `runtime` (`"herdr"` or `"hc"`), `leadPane` (your own session: `herdr pane current` on herdr, `echo $HC_TERMINAL_ID` on hc; `DORI_LEAD_PANE`, `HERDR_PANE_ID` and `HC_TERMINAL_ID` are picked up automatically), `laneWorkspace` (may stay empty so lanes open as tabs in the lead's workspace), `defaultCwd`, `feishu` (profile, ownerId, optional chatId) and `git` (repos whitelist, baseBranch, mergeMode, testCommand). `references/scripts.md` explains every field.
 
 ## 5. Monitors
 
@@ -76,6 +89,7 @@ Arm these as persistent monitors in your own session:
 | Monitor | Command | Filter |
 |---|---|---|
 | inbound messages | your messenger's watch command | new owner messages |
+| Feishu inbound (this fork) | `dori inbound feishu --loop 1` | `^INBOUND` |
 | done flow | `dori watch` | `^LANE_` |
 | dead panes | `dori dead-panes --loop 3` | `^(DEAD_PANE\|UNRECOGNISED_PANE)` |
 | host guard | `dori guard --loop 1` | `^HOST_GUARD` |

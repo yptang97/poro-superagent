@@ -24,14 +24,15 @@ Write the brief like a careful prompt:
 
 | Signal | Passes when |
 |---|---|
-| `merged <owner/repo>#N` | the PR is merged and has a merge commit |
-| `closed <owner/repo>#N` | the issue is closed |
+| `merged <owner/repo>#N` | the PR is merged and has a merge commit (GitHub flow only) |
+| `closed <owner/repo>#N` | the issue is closed (GitHub flow only) |
+| `local-merged <branch> [base=<branch>]` | the branch is an ancestor of the base branch, or the `dori-merged/<branch>` tag is |
 | `published <pkg>@<version>` | npm has that exact version |
 | `command ["argv","as","json"] [stdout~"regex"]` | the command exits 0 when the watcher runs it, and stdout matches if a regex is given |
 | `file <path> [sha256=<hex>] [json:.a.b=<json value>]` | the file exists, its sha256 matches, and the JSON field equals the value |
 | `url <http(s) url> [status=200] [body~"regex"]` | a GET returns that status, and the body matches if a regex is given |
 
-The last three are for work that never lands as a PR: a local setup, a QA pass, a running service. Write the check so that it can fail. `command ["bun","test"] stdout~" 0 fail"` is a real check, while `command ["true"]` checks nothing. The watcher runs commands itself, in the lane's directory, as a plain argv with no shell. They have a 2-minute limit. It never trusts the lane's own report that something passed. Relative file paths resolve from the lane's directory, and `~` is your home. JSON values compare as JSON, so `json:.n=3` and `json:.n="3"` are different checks.
+The last four are for work that never lands as a GitHub PR: a local branch, a local setup, a QA pass, a running service. Write the check so that it can fail. `command ["bun","test"] stdout~" 0 fail"` is a real check, while `command ["true"]` checks nothing. The watcher runs commands itself, in the lane's directory, as a plain argv with no shell. They have a 2-minute limit. It never trusts the lane's own report that something passed. Relative file paths resolve from the lane's directory, and `~` is your home. JSON values compare as JSON, so `json:.n=3` and `json:.n="3"` are different checks.
 
 Example for a QA-only lane:
 
@@ -40,6 +41,33 @@ Done = command ["bun","test"] stdout~" 0 fail"; file qa/report.json json:.passed
 ```
 
 Work no script can check (a design review, a judgement call) stays in the lane's own plan. You judge it yourself before the claim.
+
+## Local git flow (this fork)
+
+The personal-butler flow does not use GitHub. A lane works on its task branch, commits there, and opens a local PR:
+
+```sh
+dori launch fix-login --title "Fix the login redirect loop" \
+  --brief ~/briefs/fix-login.md --done "local-merged fix-login base=main" \
+  --thread "oc_your_chat_id"
+```
+
+The branch is `<branchPrefix><key>` (default `<key>`); the base is `git.baseBranch` (default `main`). The lane never commits to the base branch. When the work is ready:
+
+```sh
+dori pr open fix-login --branch fix-login --base main --summary "fix the redirect loop"
+```
+
+`pr open` runs `git.testCommand` in the branch's worktree, refuses uncommitted tracked changes, writes `<stateDir>/prs/<key>.json` and `.md`, and prints `PR_OPEN` and `PR_SUMMARY`. The lead sends the summary to the owner; nothing is merged yet.
+
+After the owner agrees, the lead records the approval at the current head and merges:
+
+```sh
+dori pr approve fix-login --by owner
+dori land fix-login
+```
+
+`land` refuses an unapproved PR, a branch that moved after approval, failing tests, a dirty worktree, a repo outside `git.repos`, or a base branch that cannot fast-forward after `git pull --ff-only` (when `git.pull` is true). It merges with `git.mergeMode` (`no-ff`, `ff-only` or `squash`), tags the result `dori-merged/<key>`, and prints `MERGED`. The task branch is kept as evidence; remove it by hand when you no longer need it. The Done signal is `local-merged <branch> base=<base>`.
 
 ## The registry
 

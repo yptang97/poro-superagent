@@ -11,7 +11,7 @@
 [![CI](https://github.com/sisyphuslabs/dori-superagent/actions/workflows/ci.yml/badge.svg)](https://github.com/sisyphuslabs/dori-superagent/actions/workflows/ci.yml)
 [![License: SUL-1.0](https://img.shields.io/badge/license-SUL--1.0-blue.svg)](LICENSE)
 
-Dori 住在你的 Slack、Discord 或 Telegram 里。你在一个 thread 里告诉他要做什么，他给这项工作开一个专属的 coding agent 会话，等工作被证明完成后再回复你：一个已 merge 的 PR，一个已关闭的 issue，一个已发布的版本。两次请求之间，他会自己去找下一项任务。整套东西就这么多。
+Dori 住在你的飞书、Slack、Discord 或 Telegram 里。你在一个 thread 里告诉他要做什么，他给这项工作开一个专属的 coding agent 会话，等工作被证明完成后再回复你：一个已 merge 的 PR，一个已关闭的 issue，一个已发布的版本。两次请求之间，他会自己去找下一项任务。整套东西就这么多。
 
 这个仓库 `dori-superagent` 就是 Dori，采用 Sustainable Use License。Dori mode（`skills/dori-mode`）是你对话的那个 bot：它由一个给你的 coding agent 用的 skill 和一个 `dori` CLI 组成，CLI 负责开启、跟踪和关闭干活的会话，也负责和 Slack、Discord、Telegram 通信。
 
@@ -45,9 +45,16 @@ Slack、Discord 和 Telegram 都在 `skills/dori-mode/scripts/src/messenger/` �
 
 在 Slack 上，你在设置时选择 Dori 以什么身份出现。用用户 token，他就是一个真正的成员：占一个付费席位，能看到该成员看到的一切，还能挂着绿色的在线圆点。用 bot token，他就是一个应用：不占席位，只能看到被邀请进的频道，权限限于你授予的 scope。
 
-创建 bot 和完成登录要通过 [agent-messenger](https://github.com/agent-messenger/agent-messenger)。表中的辅助模块直接调用各平台的 API，遇到限流时按服务器给出的等待时间重试，并拒绝任何包含 `$(` 的文本，因为消息文本是数据，从不经过 shell。在所有平台上，`dori transcribe` 都会通过你配置为 `hooks.transcribe` 的命令把语音消息转成文字。这个仓库不支持 Teams、WhatsApp、LINE、WeChat、iMessage、KakaoTalk 或 Lark，`dori send` 会拒绝它不认识的渠道。
+在这个 fork 里，飞书（Lark）是默认渠道：`dori send feishu --to <chat_id> --text ...`、`dori inbound feishu --loop 1` 通过 `lark-cli` 的 `poro` 应用工作，入站消息走 bot 长连接，只有 `feishu.ownerId` 的消息会被当作请求。Slack、Discord、Telegram 的实现仍然保留，但本地管家流程不需要它们。`dori send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]` 可以从 shell 发送、回复或编辑消息。同样的类（`Slack`、`Discord`、`Telegram`、`Feishu`）也是可导入的模块，它们以参数形式接收 HTTP 客户端/命令运行器和时钟，测试正是靠这一点在不联网的情况下运行。
 
-`dori send <slack|telegram|discord> --to TARGET --text TEXT [--thread ID] [--edit ID]` 可以从 shell 发送或编辑消息。同样的类（`Slack`、`Discord`、`Telegram`）也是可导入的模块，它们以参数形式接收 HTTP 客户端和时钟（typing 和 presence 辅助函数接收定时器），测试正是靠这一点在不联网的情况下运行。
+## 飞书与本地 Git（本 fork）
+
+这个 fork 是围绕“个人管家 + 本地仓库迭代”定制的，不需要 GitHub 远程流程。
+
+- **飞书接入**：`~/.dori/config.json` 的 `feishu` 段指定 `lark-cli` profile（默认 `poro`）、主人的 `ownerId` 和可选 `chatId`。机器人回复、编辑、线程回复都通过 `dori send feishu`；入站通过 `dori inbound feishu`（长连接、按 message_id 去重）。
+- **本地 Git 迭代**：lane 在任务分支 `<branchPrefix><key>` 上提交，不直接改主分支。完成后运行 `dori pr open <key> --branch <branch> --base main --summary "..."`：它会跑 `git.testCommand`、检查工作区干净、写出本地 PR 摘要并打印 `PR_OPEN`/`PR_SUMMARY`。lead 把摘要发给你，等你同意后执行 `dori pr approve <key> --by owner` 和 `dori land <key>`。`land` 会先 `git pull --ff-only`，再按 `git.mergeMode` 合入主分支，打上 `dori-merged/<key>` 标签并打印 `MERGED`。
+- **白名单**：`git.repos` 列出允许操作的仓库根目录或 worktree 父目录；列表为空时不限制。
+- **Done 信号**：本地工作用 `local-merged <branch> base=<main>`；GitHub 的 `merged`/`closed` 仍然可选。
 
 ## 快速开始
 
@@ -55,13 +62,20 @@ Slack、Discord 和 Telegram 都在 `skills/dori-mode/scripts/src/messenger/` �
 
 ### Dori mode，你对话的那个 bot
 
-你需要 herdr、Bun 1.4.5 或更新版本、git，以及 GitHub CLI `gh`。
+你需要 herdr 或 hc、Bun 1.4.5 或更新版本，以及 git。飞书还需要 `lark-cli`（本 fork 的默认渠道）；GitHub CLI `gh` 只在可选的 GitHub 流程里需要。
+
+Windows 上两个运行时的安装脚本只覆盖 Linux/macOS，但发布清单里有 `windows-x86_64` 包：把 `herdr.exe` 和 `herdr-core.exe`（复制一份为 `hc.exe`）放进 PATH 即可。飞书用一次：
+
+```sh
+printf '%s' "$FEISHU_APP_SECRET" | lark-cli profile add --name poro --app-id "$FEISHU_APP_ID" --app-secret-stdin
+lark-cli --profile poro auth status
+```
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sisyphuslabs/dori-superagent/main/install.sh | bash
 ```
 
-这会把本仓库克隆到 `~/.dori/src`，把 skill 链接到 `~/.agents/skills/dori-mode`，把 `dori` 链接到你的 PATH 上，并把一份示例配置复制到 `~/.dori/config.json`。至少要修改 `leadPane`（你自己的 herdr pane，用 `herdr pane current` 查看）、`laneWorkspace` 和 `defaultCwd`。
+这会把本仓库克隆到 `~/.dori/src`，把 skill 链接到 `~/.agents/skills/dori-mode`，把 `dori` 链接到你的 PATH 上，并把一份示例配置复制到 `~/.dori/config.json`。至少要修改 `leadPane`（你自己的 herdr pane，用 `herdr pane current` 查看；在 herdr/hc 里会自动读取）、`defaultCwd`、`feishu`（profile、ownerId、可选 chatId）和 `git`（仓库白名单、主分支、合并方式、测试命令）。
 
 然后在 herdr 里启动你的 coding agent，对它说：Dori mode。它会问你给它起什么名字（就叫 Dori，或者 ShipDori、WorkDori，这样几个可以并排运行），问你用哪个消息平台，和你一起完成 bot 的创建和登录，然后通过 bot 向你打招呼。在读取你的任何东西之前，它会逐个工具征求你的许可，整个引导过程是只读的。
 

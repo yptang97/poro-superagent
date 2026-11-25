@@ -11,7 +11,7 @@ English | [简体中文](README.zh.md) | [Deutsch](README.de.md) | [日本語](R
 [![CI](https://github.com/sisyphuslabs/dori-superagent/actions/workflows/ci.yml/badge.svg)](https://github.com/sisyphuslabs/dori-superagent/actions/workflows/ci.yml)
 [![License: SUL-1.0](https://img.shields.io/badge/license-SUL--1.0-blue.svg)](LICENSE)
 
-Dori lives in your Slack, Discord or Telegram. You tell him what to do in a thread, he gives the job its own coding-agent session, and he writes back when the work is proven done: a merged PR, a closed issue, a published version. Between requests he finds the next task himself. That's the whole setup.
+Dori lives in your Feishu, Slack, Discord or Telegram. You tell him what to do in a thread, he gives the job its own coding-agent session, and he writes back when the work is proven done: a merged PR, a closed issue, a published version. Between requests he finds the next task himself. That's the whole setup.
 
 This repository, `dori-superagent`, is Dori under the Sustainable Use License. Dori mode (`skills/dori-mode`) is the bot you talk to: a skill for your coding agent plus a `dori` CLI that opens, tracks and closes the sessions doing the work, and talks to Slack, Discord and Telegram.
 
@@ -45,9 +45,9 @@ Slack, Discord and Telegram are implemented in `skills/dori-mode/scripts/src/mes
 
 On Slack you choose at setup how Dori appears. With a user token he is a real member: a paid seat, he sees everything that member sees, and he can hold a green online dot. With a bot token he is an app: no seat, only the channels he is invited to, within the scopes you grant.
 
-Creating the bot and finishing its login goes through [agent-messenger](https://github.com/agent-messenger/agent-messenger). The helpers in the table call each platform's API directly, retry rate limits with the server's wait time, and refuse any text containing `$(`, since message text is data and never passes through a shell. On every platform, `dori transcribe` turns a voice note into text through the command you configure as `hooks.transcribe`. There is no Teams, WhatsApp, LINE, WeChat, iMessage, KakaoTalk or Lark support in this repository, and `dori send` refuses a channel it does not know.
+Creating the bot and finishing its login goes through [agent-messenger](https://github.com/agent-messenger/agent-messenger). The helpers in the table call each platform's API directly, retry rate limits with the server's wait time, and refuse any text containing `$(`, since message text is data and never passes through a shell. On every platform, `dori transcribe` turns a voice note into text through the command you configure as `hooks.transcribe`. This fork also supports Feishu through `lark-cli`: `dori send feishu` and `dori inbound feishu` use the saved `poro` app profile and the bot's long-connection event stream. There is no Teams, WhatsApp, LINE, WeChat, iMessage or KakaoTalk support, and `dori send` refuses a channel it does not know.
 
-`dori send <slack|telegram|discord> --to TARGET --text TEXT [--thread ID] [--edit ID]` posts or edits a message from the shell. The same classes (`Slack`, `Discord`, `Telegram`) are importable modules that take their HTTP client and clock as arguments (the typing and presence helpers take timers), which is how the tests run without the network.
+`dori send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]` posts, replies to or edits a message from the shell. The same classes (`Slack`, `Discord`, `Telegram`, `Feishu`) are importable modules that take their HTTP client or command runner and clock as arguments (the typing and presence helpers take timers), which is how the tests run without the network.
 
 ## Quick start
 
