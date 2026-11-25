@@ -15,7 +15,7 @@ export type FeishuOptions = {
 
 type FeishuResult = {
   readonly ok?: boolean;
-  readonly data?: { readonly message_id?: string; readonly update_time?: string };
+  readonly data?: { readonly message_id?: string; readonly update_time?: string; readonly reaction_id?: string };
   readonly error?: { readonly code?: number; readonly message?: string };
 };
 
@@ -85,6 +85,24 @@ export class Feishu {
     );
     const id = body.data?.message_id;
     if (!id) throw new MessengerError("feishu reply: lark-cli returned no message_id", 0);
+    return id;
+  }
+
+  /** Add an emoji reaction: the receipt the lead shows before it answers. Needs im:message and im:message.reactions:write_only. */
+  async react(messageId: string, emojiType: string): Promise<string> {
+    const body = await this.call(
+      [
+        "reactions",
+        "create",
+        "--message-id",
+        messageId,
+        "--data",
+        JSON.stringify({ reaction_type: { emoji_type: emojiType } }),
+      ],
+      "react",
+    );
+    const id = body.data?.reaction_id;
+    if (!id) throw new MessengerError("feishu react: lark-cli returned no reaction_id", 0);
     return id;
   }
 
