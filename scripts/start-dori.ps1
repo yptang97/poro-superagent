@@ -78,6 +78,11 @@ if ($config) {
   if ($config.PSObject.Properties.Name -contains 'defaultModel' -and $config.defaultModel) { $model = [string]$config.defaultModel }
 }
 
+$discordTokenFile = Join-Path $stateDir 'discord-token'
+$discordOwnerFile = Join-Path $stateDir 'discord-owner'
+$discordLog = Join-Path $logDir 'discord.log'
+$discordEnabled = (Test-Path $discordTokenFile) -and (Test-Path $discordOwnerFile)
+
 Say '== dori 启动 =='
 Say "仓库   $root"
 Say "Bun    $bunPath"
@@ -126,16 +131,51 @@ if ($running.Count -gt 0) {
   Say "飞书消费者已启动，日志 $log"
 }
 
+# 2b. Discord 入站消费者（凭据在 ~/.dori/discord-token 与 discord-owner；缺失则跳过）
+if ($discordEnabled) {
+  $discordRunning = @(Get-CimInstance Win32_Process |
+    Where-Object { $_.CommandLine -and $_.CommandLine -like '*cli.ts*inbound*discord*' })
+  if ($discordRunning.Count -gt 0) {
+    Say "Discord 消费者已在运行 (pid $($discordRunning[0].ProcessId))"
+  } else {
+    $env:DORI_DISCORD_TOKEN = (Get-Content $discordTokenFile -Raw).Trim()
+    $env:DORI_DISCORD_OWNER_ID = (Get-Content $discordOwnerFile -Raw).Trim()
+    if (Test-Path $discordLog) { Move-Item -Force $discordLog (Join-Path $logDir ("discord.{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))) }
+    Start-Process -FilePath $bunPath `
+      -ArgumentList @($cli, 'inbound', 'discord', '--loop', '1') `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput $discordLog `
+      -RedirectStandardError (Join-Path $logDir 'discord.err.log') | Out-Null
+    Say "Discord 消费者已启动，日志 $discordLog"
+  }
+} else {
+  Say 'Discord 未配置（缺 ~/.dori/discord-token 或 discord-owner），跳过'
+}
+
 # 3. 常驻 lead：一个跑 omo 的 herdr 面板，读 INBOUND 并回复
 if (-not $NoLead -and $herdrUp) {
   $leadFile = Join-Path $stateDir 'lead.md'
+  $discordBrief = ''
+  if ($discordEnabled) {
+    $discordBrief = @"
+
+## Discord（同一主人的另一个渠道）
+- 入站日志：$discordLog，同样只上报以 INBOUND 开头的行，格式 "INBOUND discord <channel> <message_id> <author_id> ..."。
+- 每条先回执再回复：
+  "$bunPath" "$cli" react discord --to <channel> --message <message_id>
+  "$bunPath" "$cli" send discord --to <channel> --text "回复内容"
+- 需要独立线程时：
+  "$bunPath" "$cli" thread start --to <channel> --message <message_id> --name "[working] <标题>"
+  再用返回的 THREAD id 当作 --to 发送；完成时 thread rename 改成 [done] 并 thread archive。
+"@
+  }
   $lead = @"
 # dori 常驻值守
 
 你是 dori，这台 Windows 机器上的常驻管家。启动脚本刚把你拉起，现在开始值守。
 
 ## 值守
-1. 立刻挂一个常驻 monitor 盯住 $logDir\inbound.log，只上报以 INBOUND 开头的行。
+1. 立刻挂一个常驻 monitor 盯住 $logDir\inbound.log，只上报以 INBOUND 开头的行。若存在 Discord 渠道，再挂一个盯 $discordLog。
 2. 每收到一条：确认 sender 是主人（配置 $configFile 的 feishu.ownerId）。
    先给这条消息加"敲键盘"表情，表示已收到：
    "$bunPath" "$cli" react feishu --message <message_id> --emoji Typing
@@ -143,6 +183,7 @@ if (-not $NoLead -and $herdrUp) {
    "$bunPath" "$cli" send feishu --to $chatId --thread <message_id> --text "回复内容"
    回到同一个会话。
 3. 没有消息时保持安静：不主动开工、不轮询、不自己找活干。
+$discordBrief
 
 ## 改代码
 - 在任务分支上做，完成后 dori pr open <key> --branch <branch> --base main。
