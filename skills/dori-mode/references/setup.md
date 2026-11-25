@@ -42,7 +42,7 @@ Install agent-messenger (github.com/agent-messenger/agent-messenger) and read wh
 agent-messenger wraps part of each platform. Read the platform's current bot API changelog and call the API directly for the rest:
 
 - Telegram: stream a reply as it grows and show "Thinking…" with message drafts, send rich messages for tables and headings, and use topics in the private chat (turn on threaded mode in BotFather's mini app; there is no API for that switch).
-- Discord: edit your own messages to grow them, and use threads.
+- Discord: edit your own messages to grow them, and use threads (`dori thread start --to <channel> --message <id> --name "[working] …"`). Receiving is `dori inbound discord`: create the bot in the Developer Portal, enable **Message Content Intent**, invite it with Read Message History, Send Messages and Create Public Threads, then set `DORI_DISCORD_TOKEN` and `DORI_DISCORD_OWNER_ID` (optionally `DORI_DISCORD_CHANNEL_ID`).
 
 ### If the owner picks Slack: user token or bot token
 
@@ -90,6 +90,7 @@ Arm these as persistent monitors in your own session:
 |---|---|---|
 | inbound messages | your messenger's watch command | new owner messages |
 | Feishu inbound (this fork) | `dori inbound feishu --loop 1` | `^INBOUND` |
+| Discord inbound (this fork) | `DORI_DISCORD_TOKEN=… dori inbound discord --loop 1` | `^INBOUND` |
 | done flow | `dori watch` | `^LANE_` |
 | dead panes | `dori dead-panes --loop 3` | `^(DEAD_PANE\|UNRECOGNISED_PANE)` |
 | host guard | `dori guard --loop 1` | `^HOST_GUARD` |

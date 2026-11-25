@@ -45,7 +45,7 @@ Slack、Discord 和 Telegram 都在 `skills/dori-mode/scripts/src/messenger/` �
 
 在 Slack 上，你在设置时选择 Dori 以什么身份出现。用用户 token，他就是一个真正的成员：占一个付费席位，能看到该成员看到的一切，还能挂着绿色的在线圆点。用 bot token，他就是一个应用：不占席位，只能看到被邀请进的频道，权限限于你授予的 scope。
 
-在这个 fork 里，飞书（Lark）是默认渠道：`dori send feishu --to <chat_id> --text ...`、`dori inbound feishu --loop 1` 通过 `lark-cli` 保存的应用 profile 工作（`feishu.profile`），入站消息走 bot 长连接，只有 `feishu.ownerId` 的消息会被当作请求。Slack、Discord、Telegram 的实现仍然保留，但本地管家流程不需要它们。`dori send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]` 可以从 shell 发送、回复或编辑消息。同样的类（`Slack`、`Discord`、`Telegram`、`Feishu`）也是可导入的模块，它们以参数形式接收 HTTP 客户端/命令运行器和时钟，测试正是靠这一点在不联网的情况下运行。
+在这个 fork 里，飞书（Lark）是默认渠道：`dori send feishu --to <chat_id> --text ...`、`dori inbound feishu --loop 1` 通过 `lark-cli` 保存的应用 profile 工作（`feishu.profile`），入站消息走 bot 长连接，只有 `feishu.ownerId` 的消息会被当作请求。Slack、Discord、Telegram 的实现仍然保留；本 fork 现在还提供 `dori inbound discord`（Gateway 长连接，`DORI_DISCORD_OWNER_ID` 闸门）与 `dori thread`，Discord 可以作为飞书之外的入站渠道使用。`dori send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]` 可以从 shell 发送、回复或编辑消息。同样的类（`Slack`、`Discord`、`Telegram`、`Feishu`）也是可导入的模块，它们以参数形式接收 HTTP 客户端/命令运行器和时钟，测试正是靠这一点在不联网的情况下运行。
 
 ## 飞书与本地 Git（本 fork）
 

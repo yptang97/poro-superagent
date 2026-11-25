@@ -59,6 +59,9 @@ The CLI is a thin layer over typed modules you can import in your own scripts:
 | `src/messenger/slack.ts` | `Slack`: post, edit, thread replies, file upload (upload URL + complete), presence; 429 backoff |
 | `src/messenger/telegram.ts` | `Telegram`: send, edit, typing, `sendMessageDraft` streaming with a `Thinking…` start, forum topics (create, rename, close, reopen), HTML tables |
 | `src/messenger/discord.ts` | `Discord`: send without pings, edit, typing, threads (start, rename, archive); gateway presence |
+| `src/messenger/discord-message.ts` | one `MESSAGE_CREATE` parsed, owner/channel gated, formatted as an `INBOUND` line |
+| `src/messenger/discord-inbound.ts` | `discordInboundLoop`: the Gateway long connection, heartbeat, resume and fatal close codes |
+| `src/messenger/seen-store.ts` | `fileSeenStore`: the bounded id set the channel consumers share |
 | `src/messenger/typing.ts` | `typingWhile`: show typing while a piece of work runs, stop when it ends |
 | `src/messenger/voice.ts` | `transcribe`: voice note to text through your hook |
 | `src/messenger/thread-ledger.ts` | `ThreadLedger`: every thread the Dori posts in, persisted; given to `Slack`, it records each `chat.postMessage` (also raw `call`s) |
@@ -167,6 +170,12 @@ Prints `CAN_LAUNCH` and exits 0 when the host has room for another lane. Otherwi
 ### `dori send <slack|telegram|discord> --to TARGET --text TEXT [--thread ID] [--edit ID]`
 Posts a message, or edits one with `--edit`. Tokens come from `DORI_SLACK_TOKEN`, or when that is unset or empty from the file `DORI_SLACK_TOKEN_FILE` names (plus `DORI_SLACK_COOKIE` for a user token). The file must be a regular file you own and owner-only (`chmod 600`), checked and read through one open descriptor; a file open to group or others, owned by someone else, not a regular file (a FIFO never blocks the read), missing or empty is refused. Windows has no mode bits or uid to check, so there the file's ACL is the owner's to set, and `dori boot` prints `SLACK token-file: the token file's NTFS ACL is not checked on Windows; ...` as a reminder. Other tokens come from `DORI_TELEGRAM_TOKEN` or `DORI_DISCORD_TOKEN`. Text containing `$(` is refused, since it can only come from a shell string. Rate limits are retried with the server's wait time; other errors fail at once.
 
+### `dori react <feishu|discord> --message ID [--to CHANNEL] [--emoji TYPE]`
+Adds the read-receipt reaction. Feishu needs only the message id and defaults to `Typing`. Discord needs `--to` (the channel or thread holding the message) and defaults to 👀; a custom Discord emoji is `name:id`.
+
+### `dori thread start --to CHANNEL --message ID --name NAME` / `thread rename|archive|reopen THREAD [--name NAME]`
+Discord only. `start` opens a thread on a message and prints `THREAD <id>`; the rest change an existing thread and print `THREAD_SET <id>`. The name is where the lead shows the job's state (`[working] …`, `[done] …`).
+
 ### `dori presence <slack|discord>`
 Keeps the account shown as online until stopped.
 - **Discord:** the bot connects to the gateway and identifies as online.
@@ -212,6 +221,22 @@ INBOUND feishu <chat_id> <message_id> <sender_id> [reply=<id>] [thread=<id>] "<t
 - message ids are deduplicated in `<stateDir>/feishu-seen.json`;
 - `--loop MIN` reconnects after MIN minutes when the stream ends; without it the command returns after one connection;
 - text is JSON-quoted on one line so later fields never shift.
+
+### `dori inbound discord [--loop MIN]`
+Holds one Discord bot connection on the Gateway WebSocket (`wss://gateway.discord.gg/?v=10&encoding=json`), identifies with `GUILD_MESSAGES | DIRECT_MESSAGES | MESSAGE_CONTENT` (37376), and prints `INBOUND_READY discord user=<id> ...` after READY, then one line per owner message:
+
+```
+INBOUND discord <channel_id> <message_id> <author_id> [guild=<id>] [files=<n>] "<text>"
+```
+
+- **Message Content is a privileged intent**: enable it in the Developer Portal, or guild messages arrive with empty text (the command warns once);
+- `DORI_DISCORD_OWNER_ID` is required and is the only sender that passes; the bot itself, other bots and everyone else are dropped;
+- `DORI_DISCORD_CHANNEL_ID` optionally pins one channel or thread (a message inside a thread carries the thread id as its channel);
+- message ids are deduplicated in `<stateDir>/discord-seen.json`; a message with no text is dropped with one warning;
+- a reconnect RESUMEs with the session id and last sequence, op 9 without a session identifies again, and a missing heartbeat ACK closes the socket and reconnects;
+- close codes 4004 (bad token) and 4010-4014 (sharding or intents) end the command with exit 1 and no retry;
+- `--loop MIN` waits MIN minutes after a dropped connection; without it the command returns after one connection;
+- edits (`MESSAGE_UPDATE`) are not delivered yet.
 
 ### `dori pr open <key> [--branch B] [--base B] [--summary TEXT]`
 Runs the configured tests in the task branch's worktree, refuses uncommitted tracked work, writes `<stateDir>/prs/<key>.json` and `.md`, and prints `PR_OPEN` plus `PR_SUMMARY`. It never merges. A failed test prints `PR_TESTS_FAILED` and exits 2.
