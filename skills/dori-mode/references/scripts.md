@@ -12,7 +12,7 @@ bun test             # behavior tests with fake herdr/hc/git/gh; nothing real is
 bunx tsc --noEmit    # typecheck
 ```
 
-Needs: bun 1.3+, herdr or hc, and git. Feishu uses `lark-cli` with a saved app profile (this fork ships `poro`). The GitHub CLI (`gh`) is needed only for the optional GitHub signals `merged`/`closed`; npm only for `published`. The full list of signal kinds is in `sessions.md`. The host guard reads `sysctl`, `memory_pressure` and `df` on macOS; on Linux it reads `/proc/loadavg`, `/proc/meminfo` (`MemAvailable` over `MemTotal`) and `df`. Memory counts as 100% free when neither source works, and swap reads as unknown on Linux.
+Needs: bun 1.3+, herdr or hc, and git. Feishu uses `lark-cli` with a saved app profile named in `feishu.profile`. The GitHub CLI (`gh`) is needed only for the optional GitHub signals `merged`/`closed`; npm only for `published`. The full list of signal kinds is in `sessions.md`. The host guard reads `sysctl`, `memory_pressure` and `df` on macOS; on Linux it reads `/proc/loadavg`, `/proc/meminfo` (`MemAvailable` over `MemTotal`) and `df`. Memory counts as 100% free when neither source works, and swap reads as unknown on Linux.
 
 ## Configuration
 
@@ -39,7 +39,7 @@ Needs: bun 1.3+, herdr or hc, and git. Feishu uses `lark-cli` with a saved app p
 | `hooks.transcribe` | none | `transcribe` (argv with `{file}`, prints the text) |
 | `supervision` | no ceilings by default (set wallMinutes, tokens or costUsd to enable); hung after 20 min | `freshness`, `launch`, `close` (see Supervision below) |
 | `repoIdentities` | none | `verify-pr`, `launch` footer: expected Git name and email per `owner/repo` (keys match without case) |
-| `feishu.profile` | `poro` | `inbound feishu`, `send feishu`: the lark-cli profile holding the app credentials |
+| `feishu.profile` | lark-cli's active profile | `inbound feishu`, `send feishu`: the lark-cli profile holding the app credentials |
 | `feishu.ownerId`, `feishu.chatId` | none | `inbound feishu`: the owner's open_id under this app, and an optional single-chat gate; `DORI_FEISHU_OWNER_ID` / `DORI_FEISHU_CHAT_ID` override |
 | `git.repos` | `[]` | `pr`, `land`: absolute repo roots or worktree parents the Dori may touch; empty allows any path |
 | `git.baseBranch` | `main` | `pr`, `land`, `launch` footer |
@@ -198,10 +198,10 @@ Runs `hooks.transcribe` and prints the transcript. A failed or empty transcripti
 Waits until load is under `heavyMaxLoad` and one of `heavySlots` is free, then runs the command and frees the slot when it exits. A slot held by a process that no longer exists (or a zombie) is taken over. Use it for full builds and test suites. Installs, focused tests and git do not need it.
 
 ### `dori send feishu --to CHAT_ID --text TEXT [--thread MESSAGE_ID] [--edit MESSAGE_ID]`
-Posts through the `poro` lark-cli profile as the bot and prints `SENT <message_id>`; `--thread` replies to a message, `--edit` edits a bot message in place. `--to` is the chat id (`oc_...`), never a user open_id. Text is one argv argument and `$(` is refused, as on every platform.
+Posts through the configured lark-cli profile as the bot and prints `SENT <message_id>`; `--thread` replies to a message, `--edit` edits a bot message in place. `--to` is the chat id (`oc_...`), never a user open_id. Text is one argv argument and `$(` is refused, as on every platform.
 
 ### `dori inbound feishu [--loop MIN]`
-Holds the Feishu bot long connection via `lark-cli --profile poro event consume im.message.receive_v1 --as bot` and prints `INBOUND_READY feishu ...` once the connection is up, then one line per owner message:
+Holds the Feishu bot long connection via `lark-cli --profile <name> event consume im.message.receive_v1 --as bot` and prints `INBOUND_READY feishu ...` once the connection is up, then one line per owner message:
 
 ```
 INBOUND feishu <chat_id> <message_id> <sender_id> [reply=<id>] [thread=<id>] "<text>"

@@ -45,7 +45,7 @@
     "transcribe": ["my-stt", "--file", "{file}"]
   },
   "feishu": {
-    "profile": "poro",
+    "profile": "dori",
     "ownerId": "ou_your_open_id",
     "chatId": "oc_your_chat_id"
   },

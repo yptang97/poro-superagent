@@ -15,14 +15,14 @@ const recorder = (script: (argv: readonly string[], n: number) => Ran) => {
   return { run, calls };
 };
 
-test("feishu send goes through lark-cli with the poro profile and returns its message id", async () => {
+test("feishu send goes through lark-cli with the configured profile and returns its message id", async () => {
   const { run, calls } = recorder(() => ok({ ok: true, data: { message_id: "om_sent" } }));
-  const id = await new Feishu(run, { profile: "poro" }).send({ chatId: "oc_1" }, "你好");
+  const id = await new Feishu(run, { profile: "dori" }).send({ chatId: "oc_1" }, "你好");
   expect(id).toBe("om_sent");
   expect(calls[0]).toEqual([
     "lark-cli",
     "--profile",
-    "poro",
+    "dori",
     "im",
     "+messages-send",
     "--chat-id",
@@ -38,7 +38,7 @@ test("feishu send goes through lark-cli with the poro profile and returns its me
 
 test("feishu reply and edit use the bot-only shortcuts", async () => {
   const { run, calls } = recorder(() => ok({ ok: true, data: { message_id: "om_new" } }));
-  const feishu = new Feishu(run, { profile: "poro" });
+  const feishu = new Feishu(run, { profile: "dori" });
   expect(await feishu.reply("om_root", "收到", true)).toBe("om_new");
   await feishu.edit("om_new", "已更新");
   expect(calls[0]?.slice(4, 8)).toEqual(["+messages-reply", "--message-id", "om_root", "--text"]);
@@ -56,7 +56,7 @@ test("a Feishu error keeps the API message and code", async () => {
   const { run } = recorder(() =>
     ok({ ok: false, error: { code: 99991672, message: "access denied: missing scope" } }),
   );
-  const err = await new Feishu(run, { profile: "poro" })
+  const err = await new Feishu(run, { profile: "dori" })
     .send({ chatId: "oc_1" }, "hi")
     .catch((e: unknown) => e);
   expect(err).toBeInstanceOf(MessengerError);

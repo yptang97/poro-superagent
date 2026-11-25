@@ -91,10 +91,10 @@ test("the seen store persists message ids and starts empty when the file is corr
 });
 
 test("the consume argv names the receive event and the bot identity", () => {
-  expect(feishuConsumeArgv("poro")).toEqual([
+  expect(feishuConsumeArgv("dori")).toEqual([
     "lark-cli",
     "--profile",
-    "poro",
+    "dori",
     "event",
     "consume",
     "im.message.receive_v1",

@@ -29,8 +29,8 @@ hc --skill                          # load its skill unless it is already in you
 This fork talks to Feishu through `lark-cli`, not agent-messenger. Add the app as an isolated profile once, feeding the secret on stdin so it never reaches shell history:
 
 ```sh
-printf '%s' "$FEISHU_APP_SECRET" | lark-cli profile add --name poro --app-id "$FEISHU_APP_ID" --app-secret-stdin
-lark-cli --profile poro auth status   # bot identity: ready
+printf '%s' "$FEISHU_APP_SECRET" | lark-cli profile add --name dori --app-id "$FEISHU_APP_ID" --app-secret-stdin
+lark-cli --profile dori auth status   # bot identity: ready
 ```
 
 The profile holds the tenant token; the app secret is never written to this repository. `~/.dori/config.json` names the profile under `feishu.profile`. The bot needs the IM message scopes (send, reply, edit, receive events) and `im.message.receive_v1` enabled in long-connection mode. Put the owner's open_id under this app in `feishu.ownerId`; `dori inbound feishu` drops everyone else. `feishu.chatId` optionally pins one chat. If lark-cli prints a console-precheck warning about `application:application:self_manage`, it only means it cannot read the app metadata; the IM long connection still works.
@@ -61,7 +61,7 @@ Record the choice. With a user token, set `DORI_SLACK_TOKEN` and `DORI_SLACK_COO
 
 ## 3. Bot (Feishu in this fork)
 
-Create the `poro` bot in the Feishu developer console and set its avatar there. Send it one DM from the owner account, run `dori inbound feishu --loop 1`, and confirm one `INBOUND` line. Then greet the owner with `dori send feishu --to <chat_id> --text "..."`.
+Create the bot in the Feishu developer console and set its avatar there. Send it one DM from the owner account, run `dori inbound feishu --loop 1`, and confirm one `INBOUND` line. Then greet the owner with `dori send feishu --to <chat_id> --text "..."`.
 
 The same step for other platforms (optional). Finish every login in the browser. Create the bot with agent-messenger and finish its setup. Then give it its avatar: the default is `assets/dori-avatar.png` in this skill, and the owner can swap in any image.
 

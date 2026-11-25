@@ -45,13 +45,13 @@ Slack、Discord 和 Telegram 都在 `skills/dori-mode/scripts/src/messenger/` �
 
 在 Slack 上，你在设置时选择 Dori 以什么身份出现。用用户 token，他就是一个真正的成员：占一个付费席位，能看到该成员看到的一切，还能挂着绿色的在线圆点。用 bot token，他就是一个应用：不占席位，只能看到被邀请进的频道，权限限于你授予的 scope。
 
-在这个 fork 里，飞书（Lark）是默认渠道：`dori send feishu --to <chat_id> --text ...`、`dori inbound feishu --loop 1` 通过 `lark-cli` 的 `poro` 应用工作，入站消息走 bot 长连接，只有 `feishu.ownerId` 的消息会被当作请求。Slack、Discord、Telegram 的实现仍然保留，但本地管家流程不需要它们。`dori send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]` 可以从 shell 发送、回复或编辑消息。同样的类（`Slack`、`Discord`、`Telegram`、`Feishu`）也是可导入的模块，它们以参数形式接收 HTTP 客户端/命令运行器和时钟，测试正是靠这一点在不联网的情况下运行。
+在这个 fork 里，飞书（Lark）是默认渠道：`dori send feishu --to <chat_id> --text ...`、`dori inbound feishu --loop 1` 通过 `lark-cli` 保存的应用 profile 工作（`feishu.profile`），入站消息走 bot 长连接，只有 `feishu.ownerId` 的消息会被当作请求。Slack、Discord、Telegram 的实现仍然保留，但本地管家流程不需要它们。`dori send <slack|telegram|discord|feishu> --to TARGET --text TEXT [--thread ID] [--edit ID]` 可以从 shell 发送、回复或编辑消息。同样的类（`Slack`、`Discord`、`Telegram`、`Feishu`）也是可导入的模块，它们以参数形式接收 HTTP 客户端/命令运行器和时钟，测试正是靠这一点在不联网的情况下运行。
 
 ## 飞书与本地 Git（本 fork）
 
 这个 fork 是围绕“个人管家 + 本地仓库迭代”定制的，不需要 GitHub 远程流程。
 
-- **飞书接入**：`~/.dori/config.json` 的 `feishu` 段指定 `lark-cli` profile（默认 `poro`）、主人的 `ownerId` 和可选 `chatId`。机器人回复、编辑、线程回复都通过 `dori send feishu`；入站通过 `dori inbound feishu`（长连接、按 message_id 去重）。
+- **飞书接入**：`~/.dori/config.json` 的 `feishu` 段指定 `lark-cli` profile（不填则用 lark-cli 当前激活的 profile）、主人的 `ownerId` 和可选 `chatId`。机器人回复、编辑、线程回复都通过 `dori send feishu`；入站通过 `dori inbound feishu`（长连接、按 message_id 去重）。
 - **本地 Git 迭代**：lane 在任务分支 `<branchPrefix><key>` 上提交，不直接改主分支。完成后运行 `dori pr open <key> --branch <branch> --base main --summary "..."`：它会跑 `git.testCommand`、检查工作区干净、写出本地 PR 摘要并打印 `PR_OPEN`/`PR_SUMMARY`。lead 把摘要发给你，等你同意后执行 `dori pr approve <key> --by owner` 和 `dori land <key>`。`land` 会先 `git pull --ff-only`，再按 `git.mergeMode` 合入主分支，打上 `dori-merged/<key>` 标签并打印 `MERGED`。
 - **白名单**：`git.repos` 列出允许操作的仓库根目录或 worktree 父目录；列表为空时不限制。
 - **Done 信号**：本地工作用 `local-merged <branch> base=<main>`；GitHub 的 `merged`/`closed` 仍然可选。
@@ -67,8 +67,8 @@ Slack、Discord 和 Telegram 都在 `skills/dori-mode/scripts/src/messenger/` �
 Windows 上两个运行时的安装脚本只覆盖 Linux/macOS，但发布清单里有 `windows-x86_64` 包：把 `herdr.exe` 和 `herdr-core.exe`（复制一份为 `hc.exe`）放进 PATH 即可。飞书用一次：
 
 ```sh
-printf '%s' "$FEISHU_APP_SECRET" | lark-cli profile add --name poro --app-id "$FEISHU_APP_ID" --app-secret-stdin
-lark-cli --profile poro auth status
+printf '%s' "$FEISHU_APP_SECRET" | lark-cli profile add --name dori --app-id "$FEISHU_APP_ID" --app-secret-stdin
+lark-cli --profile dori auth status
 ```
 
 ```sh

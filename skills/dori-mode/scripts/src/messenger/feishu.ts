@@ -4,7 +4,7 @@ import { guardText, MessengerError } from "./http.ts";
 /**
  * Feishu through `lark-cli`. The CLI owns the app credentials and the tenant token, so this module passes messages as
  * argv (never a shell string) and reads the shortcut's JSON result back. A saved lark-cli profile selects the app:
- * `lark-cli --profile poro im +messages-send ...`.
+ * `lark-cli --profile <name> im +messages-send ...`.
  */
 export type FeishuTarget = { readonly chatId: string };
 

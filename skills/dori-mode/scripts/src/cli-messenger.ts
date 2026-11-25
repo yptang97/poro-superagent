@@ -24,7 +24,7 @@ import { realClock, run } from "./run.ts";
 /** Messenger errors are one line, never a stack. */
 export const messengerErrors = [MessengerError, UnsafeMessageError, TranscriptionError] as const;
 
-const feishuProfile = (config: { readonly feishu: { readonly profile: string } }): string =>
+const feishuProfile = (config: { readonly feishu: { readonly profile?: string } }): string | undefined =>
   process.env["DORI_FEISHU_PROFILE"] ?? config.feishu.profile;
 
 const feishuOwner = (config: { readonly feishu: { readonly ownerId?: string } }): string | undefined =>
@@ -81,7 +81,8 @@ const send: Command = async ({ key, need, opt, values, config }) => {
   } else if (platform === "feishu") {
     const messageId = present("edit");
     const thread = present("thread");
-    const feishu = new Feishu(run, { profile: feishuProfile(config) });
+    const profile = feishuProfile(config);
+    const feishu = new Feishu(run, profile === undefined ? {} : { profile });
     if (messageId !== undefined) await feishu.edit(messageId, text);
     else if (thread !== undefined) console.log(`SENT ${await feishu.reply(thread, text)}`);
     else console.log(`SENT ${await feishu.send({ chatId: to }, text)}`);
@@ -165,7 +166,7 @@ const telegramInbound = async (stateDir: string, minutes: number): Promise<void>
 };
 
 const feishuInbound = async (
-  config: { readonly stateDir: string; readonly feishu: { readonly profile: string; readonly ownerId?: string; readonly chatId?: string } },
+  config: { readonly stateDir: string; readonly feishu: { readonly profile?: string; readonly ownerId?: string; readonly chatId?: string } },
   minutes: number,
 ): Promise<void> => {
   const profile = feishuProfile(config);
@@ -189,7 +190,7 @@ const feishuInbound = async (
       store,
       emit: (i) => console.log(formatFeishuInbound(i)),
       ready: () =>
-        console.log(`INBOUND_READY feishu profile=${profile} owner=${ownerId ?? "-"} chat=${chatId ?? "-"}`),
+        console.log(`INBOUND_READY feishu profile=${profile ?? "-"} owner=${ownerId ?? "-"} chat=${chatId ?? "-"}`),
       warn: (m) => console.log(`WARN ${m}`.slice(0, 300)),
     },
   );

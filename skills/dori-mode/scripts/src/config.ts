@@ -15,7 +15,8 @@ export type Hooks = {
 
 /** Feishu is driven through the `lark-cli` binary and a saved app profile. */
 export type FeishuConfig = {
-  readonly profile: string;
+  /** The lark-cli profile holding the app credential; omit to use lark-cli's active profile. */
+  readonly profile?: string;
   /** The owner's open_id under this app; only this sender is a request. */
   readonly ownerId?: string;
   /** Optional chat gate: deliver only this chat's owner messages. */
@@ -94,7 +95,7 @@ export const defaultConfig = (home = homedir()): DoriConfig => ({
   guard: { loadAlert: 150, loadOk: 80, memFreeMinPct: 20, diskFreeMinGb: 50, panesMax: 20 },
   hooks: {},
   repoIdentities: {},
-  feishu: { profile: "poro" },
+  feishu: {},
   git: { repos: [], baseBranch: "main", branchPrefix: "", pull: true, mergeMode: "no-ff" },
   supervision: {
     hungAfterMinutes: 20,
@@ -295,7 +296,9 @@ export const loadConfig = async (path = configPath(), home = homedir()): Promise
     stateDir: expandHome(process.env["DORI_STATE_DIR"] ?? merged.stateDir, home),
     defaultCwd: expandHome(merged.defaultCwd, home),
     feishu: {
-      profile: process.env["DORI_FEISHU_PROFILE"] ?? merged.feishu.profile,
+      ...(process.env["DORI_FEISHU_PROFILE"] ?? merged.feishu.profile
+        ? { profile: process.env["DORI_FEISHU_PROFILE"] ?? merged.feishu.profile }
+        : {}),
       ...(process.env["DORI_FEISHU_OWNER_ID"] ?? merged.feishu.ownerId
         ? { ownerId: process.env["DORI_FEISHU_OWNER_ID"] ?? merged.feishu.ownerId }
         : {}),
