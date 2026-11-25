@@ -15,6 +15,48 @@ Set-StrictMode -Version Latest
 
 function Say([string]$Message) { if (-not $Quiet) { Write-Host $Message } }
 
+# WinINET 的系统代理只对桌面应用生效；Bun 的 fetch 认 HTTPS_PROXY，WebSocket 只认 proxy 参数，
+# 二者都不读系统代理。这里把它转成环境变量，让本脚本拉起的子进程继承。
+function ConvertTo-ProxyUrl([string]$Server) {
+  if (-not $Server) { return $null }
+  $bare = $null; $http = $null; $https = $null
+  foreach ($part in $Server.Split(';')) {
+    $pair = $part.Split('=', 2)
+    if ($pair.Count -eq 2) {
+      switch ($pair[0].Trim().ToLowerInvariant()) {
+        'https' { $https = $pair[1].Trim() }
+        'http'  { $http = $pair[1].Trim() }
+      }
+    } elseif ($part.Trim()) {
+      $bare = $part.Trim()
+    }
+  }
+  $chosen = if ($https) { $https } elseif ($http) { $http } else { $bare }
+  if (-not $chosen) { return $null }
+  if ($chosen -notmatch '^[a-zA-Z][a-zA-Z0-9+.-]*://') { $chosen = "http://$chosen" }
+  return $chosen
+}
+
+function Get-SystemProxyUrl {
+  $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+  $settings = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
+  if (-not $settings) { return $null }
+  if (-not ($settings.PSObject.Properties.Name -contains 'ProxyEnable')) { return $null }
+  if (-not $settings.ProxyEnable) { return $null }
+  if (-not ($settings.PSObject.Properties.Name -contains 'ProxyServer')) { return $null }
+  return ConvertTo-ProxyUrl ([string]$settings.ProxyServer)
+}
+
+$proxyUrl = $null
+if ($env:HTTPS_PROXY) { $proxyUrl = $env:HTTPS_PROXY }
+elseif ($env:https_proxy) { $proxyUrl = $env:https_proxy }
+elseif ($env:ALL_PROXY) { $proxyUrl = $env:ALL_PROXY }
+elseif ($env:all_proxy) { $proxyUrl = $env:all_proxy }
+else {
+  $proxyUrl = Get-SystemProxyUrl
+  if ($proxyUrl) { $env:HTTPS_PROXY = $proxyUrl }
+}
+
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $stateDir = Join-Path $HOME '.dori'
 $logDir = Join-Path $stateDir 'logs'
@@ -39,6 +81,7 @@ if ($config) {
 Say '== dori 启动 =='
 Say "仓库   $root"
 Say "Bun    $bunPath"
+if ($proxyUrl) { Say "代理   $proxyUrl" } else { Say '代理   无（直连）' }
 
 # 1. herdr：只在自己没起时启无头 server（有 TUI 在跑就不碰，避免抢会话）
 $herdr = Get-Command herdr -ErrorAction SilentlyContinue
