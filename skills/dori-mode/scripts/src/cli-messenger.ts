@@ -1,6 +1,6 @@
 /** dori send, presence, inbound and transcribe: the messengers. */
 import { type Command, die, envSlackToken, every, slackAuth } from "./cli-context.ts";
-import { discordInbound, discordReact, discordThread } from "./cli-discord.ts";
+import { discordInbound, discordProxy, discordReact, discordThread } from "./cli-discord.ts";
 import { Discord, discordPresence } from "./messenger/discord.ts";
 import { Feishu } from "./messenger/feishu.ts";
 import {
@@ -113,7 +113,9 @@ const presence: Command = async ({ key }) => {
     const token = process.env["DORI_DISCORD_TOKEN"] ?? die("DORI_DISCORD_TOKEN is not set");
     discordPresence(
       () => {
-        const ws = new WebSocket("wss://gateway.discord.gg/?v=10&encoding=json");
+        const url = "wss://gateway.discord.gg/?v=10&encoding=json";
+        const via = discordProxy();
+        const ws = new WebSocket(url, via === undefined ? undefined : { proxy: via });
         let handler: (d: string) => void = () => {};
         ws.addEventListener("message", (e) => handler(String(e.data)));
         return {

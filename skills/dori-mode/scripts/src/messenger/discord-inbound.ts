@@ -94,7 +94,10 @@ const runSession = (
       }
       return finish({
         action: "closed",
-        reason: `discord gateway closed ${code}${resumable ? "" : " (session lost)"}`,
+        reason:
+          code === 1006
+            ? "discord gateway closed 1006 before hello; if this host needs a proxy, set HTTPS_PROXY or ALL_PROXY"
+            : `discord gateway closed ${code}${resumable ? "" : " (session lost)"}`,
       });
     });
     ws.onMessage((raw) => {

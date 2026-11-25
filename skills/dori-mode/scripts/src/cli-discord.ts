@@ -9,8 +9,12 @@ import { realClock } from "./run.ts";
 
 const token = (): string => process.env["DORI_DISCORD_TOKEN"] ?? die("DORI_DISCORD_TOKEN is not set");
 
+export const discordProxy = (): string | undefined =>
+  process.env["HTTPS_PROXY"] ?? process.env["https_proxy"] ?? process.env["ALL_PROXY"] ?? process.env["all_proxy"];
+
 const socket = (url: string): GatewaySocket => {
-  const ws = new WebSocket(url);
+  const via = discordProxy();
+  const ws = new WebSocket(url, via === undefined ? undefined : { proxy: via });
   let message: (data: string) => void = () => {};
   let close: (code: number) => void = () => {};
   let closed = false;
