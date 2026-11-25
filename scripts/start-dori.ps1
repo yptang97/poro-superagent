@@ -66,6 +66,9 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $bun = Get-Command bun -ErrorAction SilentlyContinue
 if (-not $bun) { Write-Error 'bun 不在 PATH 上，先安装 bun (https://bun.sh)'; exit 1 }
 $bunPath = $bun.Source
+$omo = Get-Command omo -ErrorAction SilentlyContinue
+# 面板的 PATH 不一定有 omo（herdr server 的环境可能更旧），所以用绝对路径。
+$omoPath = if ($omo) { $omo.Source } else { 'omo' }
 $cli = Join-Path $root 'skills\dori-mode\scripts\src\cli.ts'
 if (-not (Test-Path $cli)) { Write-Error "找不到 dori CLI：$cli"; exit 1 }
 
@@ -216,7 +219,8 @@ $discordBrief
     Say "lead 已在运行 ($paneId)"
   } else {
     # pane run 会一直等到被敲进去的命令退出；omo 不退出，脚本就卡死。
-    & herdr pane send-text $paneId "omo --model $model read $leadFile and follow it" | Out-Null
+    $omoLine = $omoPath + ' --model ' + $model + ' read ' + $leadFile + ' and follow it'
+    & herdr pane send-text $paneId $omoLine | Out-Null
     & herdr pane send-keys $paneId enter | Out-Null
     Say "lead 已拉起 ($paneId)"
   }
