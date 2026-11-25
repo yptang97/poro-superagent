@@ -11,6 +11,7 @@ import { ConfigError, loadConfig } from "./config.ts";
 import type { FlowDeps } from "./done-flow.ts";
 import { GitLocalError } from "./git-local.ts";
 import { LaunchError } from "./launch.ts";
+import { ensureProxyEnv } from "./proxy-env.ts";
 import { Registry } from "./registry.ts";
 import { realClock, run } from "./run.ts";
 
@@ -66,6 +67,7 @@ const USAGE = `dori <command> [options]
   inbound slack|telegram|feishu|discord [--loop MIN]
                                        print INBOUND lines: Slack unread thread replies / Telegram owner DMs / Feishu owner messages (long connection) / Discord owner messages (gateway)`;
 
+ensureProxyEnv();
 const config = await loadConfig().catch((e: unknown) =>
   e instanceof ConfigError ? die(e.message) : Promise.reject(e),
 );

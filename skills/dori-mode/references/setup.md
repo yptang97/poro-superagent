@@ -42,7 +42,7 @@ Install agent-messenger (github.com/agent-messenger/agent-messenger) and read wh
 agent-messenger wraps part of each platform. Read the platform's current bot API changelog and call the API directly for the rest:
 
 - Telegram: stream a reply as it grows and show "Thinking…" with message drafts, send rich messages for tables and headings, and use topics in the private chat (turn on threaded mode in BotFather's mini app; there is no API for that switch).
-- Discord: edit your own messages to grow them, and use threads (`dori thread start --to <channel> --message <id> --name "[working] …"`). Receiving is `dori inbound discord`: create the bot in the Developer Portal, enable **Message Content Intent**, invite it with Read Message History, Send Messages, Create Public Threads and Add Reactions, then set `DORI_DISCORD_TOKEN` and `DORI_DISCORD_OWNER_ID` (optionally `DORI_DISCORD_CHANNEL_ID`). Behind a proxy, set `HTTPS_PROXY`; Bun's WebSocket does not read the Windows system proxy.
+- Discord: edit your own messages to grow them, and use threads (`dori thread start --to <channel> --message <id> --name "[working] …"`). Receiving is `dori inbound discord`: create the bot in the Developer Portal, enable **Message Content Intent**, invite it with Read Message History, Send Messages, Create Public Threads and Add Reactions, then set `DORI_DISCORD_TOKEN` and `DORI_DISCORD_OWNER_ID` (optionally `DORI_DISCORD_CHANNEL_ID`). Behind a proxy, set `HTTPS_PROXY`; Bun's WebSocket does not read the Windows system proxy (on Windows the CLI fills the variable in from the system proxy when none is set).
 
 ### If the owner picks Slack: user token or bot token
 

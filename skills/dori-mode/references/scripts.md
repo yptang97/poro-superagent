@@ -235,7 +235,7 @@ INBOUND discord <channel_id> <message_id> <author_id> [guild=<id>] [files=<n>] "
 - message ids are deduplicated in `<stateDir>/discord-seen.json`; a message with no text is dropped with one warning;
 - a reconnect RESUMEs with the session id and last sequence, op 9 without a session identifies again, and a missing heartbeat ACK closes the socket and reconnects;
 - close codes 4004 (bad token) and 4010-4014 (sharding or intents) end the command with exit 1 and no retry;
-- behind a proxy, set `HTTPS_PROXY` or `ALL_PROXY`: REST uses it natively, and the gateway passes it as Bun's WebSocket `proxy` option (Bun never reads the Windows system proxy);
+- behind a proxy, set `HTTPS_PROXY` or `ALL_PROXY`: REST uses it natively, and the gateway passes it as Bun's WebSocket `proxy` option (Bun never reads the Windows system proxy; on Windows the CLI reads it for you when no variable is set);
 - `--loop MIN` waits MIN minutes after a dropped connection; without it the command returns after one connection;
 - edits (`MESSAGE_UPDATE`) are not delivered yet.
 
