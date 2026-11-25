@@ -127,6 +127,25 @@ export const checkSignal = async (signal: string, run: Runner, io: SignalIo = {}
         return { signal: s, ok: false, detail: `status ${res.status} but body does not match ${sig.body}` };
       return { signal: s, ok: true, detail: `status ${res.status}${sig.body ? ", body matches" : ""}` };
     }
+    case "local-merged": {
+      const cwd = io.cwd ?? process.cwd();
+      const base = sig.base ?? "main";
+      const baseRef = await run(["git", "-C", cwd, "rev-parse", "--verify", `refs/heads/${base}`]);
+      if (baseRef.code !== 0) return { signal: s, ok: false, detail: `主分支不存在：${base}` };
+      const head = await run(["git", "-C", cwd, "rev-parse", "--verify", `refs/heads/${sig.branch}`]);
+      let ref = sig.branch;
+      if (head.code !== 0) {
+        const tag = await run(["git", "-C", cwd, "rev-parse", "--verify", `refs/tags/dori-merged/${sig.branch}`]);
+        if (tag.code !== 0) return { signal: s, ok: false, detail: `分支和合并标签都不存在：${sig.branch}` };
+        ref = `refs/tags/dori-merged/${sig.branch}`;
+      }
+      const merged = await run(["git", "-C", cwd, "merge-base", "--is-ancestor", ref, base]);
+      return {
+        signal: s,
+        ok: merged.code === 0,
+        detail: merged.code === 0 ? `${ref} 已并入 ${base}` : `${ref} 尚未并入 ${base}`,
+      };
+    }
   }
 };
 

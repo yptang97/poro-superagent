@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { type DoriConfig, fill } from "./config.ts";
 import type { SessionRef } from "../../../../src/runtime/types.ts";
@@ -61,6 +62,11 @@ export const objectDone = async (deps: FlowDeps, lane: Lane, reasons: readonly s
   return `LANE_NOT_DONE ${lane.key} ${reasons.join("; ")}`;
 };
 
+const samePath = (a: string, b: string): boolean => {
+  const norm = (p: string) => resolve(p).replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return norm(a) === norm(b);
+};
+
 export const discoverWorktrees = async (
   lane: Lane,
   run: Runner,
@@ -76,7 +82,7 @@ export const discoverWorktrees = async (
       if (line.startsWith("worktree ")) path = line.slice(9);
       else if (
         line.startsWith("branch ") &&
-        path !== root &&
+        !samePath(path, root) &&
         (ours(line.split("/").pop() ?? "") || ours(path.split("/").pop() ?? ""))
       )
         found.add(path);
@@ -94,6 +100,7 @@ export const unpushedWork = async (deps: FlowDeps, lane: Lane): Promise<string[]
   // there, and cwd holds the human's checkout, which the lane must not be blocked on.
   const owned = await discoverWorktrees(lane, deps.run, [deps.config.defaultCwd]);
   const roots = owned.length ? owned : [lane.cwd ?? deps.config.defaultCwd];
+  const localFlow = /\blocal-merged\b/i.test(lane.done);
   for (const wt of roots) {
     if (!exists(wt)) continue;
     // A fallback cwd that is not a git checkout has nothing to push; it must not be reported as unreadable
@@ -104,9 +111,14 @@ export const unpushedWork = async (deps: FlowDeps, lane: Lane): Promise<string[]
       if (inside.code !== 0 || inside.out.trim() !== "true") continue;
     }
     const dirty = await deps.run(["git", "-C", wt, "status", "--porcelain", "--untracked-files=no"]);
-    const ahead = await deps.run(["git", "-C", wt, "rev-list", "--count", "HEAD", "--not", "--remotes"]);
-    if (dirty.code !== 0 || ahead.code !== 0) reasons.push(`unpushed work in ${wt} (git state unreadable)`);
-    else if (dirty.out.trim() || Number(ahead.out.trim()) > 0) reasons.push(`unpushed work in ${wt}`);
+    const remotes = await deps.run(["git", "-C", wt, "remote"]);
+    if (dirty.code !== 0 || remotes.code !== 0) reasons.push(`unpushed work in ${wt} (git state unreadable)`);
+    else if (dirty.out.trim()) reasons.push(`uncommitted work in ${wt}`);
+    else if (!localFlow && remotes.out.trim()) {
+      const ahead = await deps.run(["git", "-C", wt, "rev-list", "--count", "HEAD", "--not", "--remotes"]);
+      if (ahead.code !== 0) reasons.push(`unpushed work in ${wt} (git state unreadable)`);
+      else if (Number(ahead.out.trim()) > 0) reasons.push(`unpushed work in ${wt}`);
+    }
   }
   return reasons;
 };

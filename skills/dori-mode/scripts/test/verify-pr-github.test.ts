@@ -214,7 +214,7 @@ test("a commit list for a different head cannot be certified", async () => {
   expect((await verifyPr(p.repo, p.number, fake.run, withIdentity)).ok).toBe(false);
 });
 
-test("the lane footer lists configured commit identities and the verify-pr rule", () => {
+test("the lane footer lists configured commit identities and the local PR rule", () => {
   const lane = {
     key: "demo-lane",
     title: "demo",
@@ -225,6 +225,6 @@ test("the lane footer lists configured commit identities and the verify-pr rule"
   };
   const text = footer(lane, "w1:p1", { "acme/app": IDENTITY });
   expect(text).toContain(`  - acme/app: git -c user.name='Example Dev' -c user.email='${IDENTITY.email}' commit ...`);
-  expect(text).toContain(`run ${cliCommand()} verify-pr <owner/repo> <number>`);
+  expect(text).toContain(`run ${cliCommand()} pr open demo-lane --branch demo-lane --base main`);
   expect(footer(lane, "w1:p1")).not.toContain("Before committing");
 });

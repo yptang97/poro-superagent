@@ -2,12 +2,14 @@
 import { parseArgs } from "node:util";
 
 import { type Command, die, makeCli } from "./cli-context.ts";
+import { gitCommands } from "./cli-git.ts";
 import { journalCommands, journalErrors } from "./cli-journal.ts";
 import { laneCommands } from "./cli-lanes.ts";
 import { messengerCommands, messengerErrors } from "./cli-messenger.ts";
 import { opsCommands } from "./cli-ops.ts";
 import { ConfigError, loadConfig } from "./config.ts";
 import type { FlowDeps } from "./done-flow.ts";
+import { GitLocalError } from "./git-local.ts";
 import { LaunchError } from "./launch.ts";
 import { Registry } from "./registry.ts";
 import { realClock, run } from "./run.ts";
@@ -28,6 +30,11 @@ const USAGE = `dori <command> [options]
                                        check every commit's author/committer email and PR-level tests; print the UI test loop (not run)
   claim-done [<key>] --evidence TEXT  key defaults to the lane registered for your own session (HC_TERMINAL_ID or HERDR_PANE_ID)
   object-done <key> --reason TEXT [--reason TEXT ...]
+  pr open <key> [--branch B] [--base B] [--summary TEXT]
+                                       test the task branch, write a local PR record and print PR_OPEN / PR_SUMMARY
+  pr show <key> | pr approve <key> --by WHO | pr decline <key> [--note TEXT]
+                                       inspect the local PR, record the owner's approval, or decline it
+  land <key>                           merge the approved local PR into the base branch (pull first); prints MERGED
   lesson add <key> --rule TEXT --evidence PATH [--cwd DIR]
   lesson add --global --rule TEXT --evidence REF
                                        the lead's lesson for every lane, whatever its repo
@@ -71,6 +78,10 @@ const flags = parseArgs({
     thread: { type: "string" },
     model: { type: "string" },
     cwd: { type: "string" },
+    branch: { type: "string" },
+    base: { type: "string" },
+    summary: { type: "string" },
+    by: { type: "string" },
     pane: { type: "string" },
     evidence: { type: "string" },
     reason: { type: "string", multiple: true },
@@ -103,6 +114,7 @@ const commands: Readonly<Record<string, Command>> = {
   ...laneCommands,
   ...opsCommands,
   ...messengerCommands,
+  ...gitCommands,
 };
 const handler = Object.hasOwn(commands, command) ? commands[command] : undefined;
 
@@ -113,7 +125,11 @@ try {
     process.exit(command ? 1 : 0);
   }
 } catch (e) {
-  if (e instanceof LaunchError || [...messengerErrors, ...journalErrors].some((type) => e instanceof type))
+  if (
+    e instanceof LaunchError ||
+    e instanceof GitLocalError ||
+    [...messengerErrors, ...journalErrors].some((type) => e instanceof type)
+  )
     die((e as Error).message);
   throw e;
 }

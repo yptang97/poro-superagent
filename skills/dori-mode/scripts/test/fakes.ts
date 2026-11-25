@@ -13,6 +13,8 @@ export type World = {
   issueState: string;
   aheadCount: string | Record<string, string>;
   dirty: string | Record<string, string>;
+  /** `git remote` answer; defaults to origin, so unpushed-commit checks keep their meaning. */
+  remotes?: string;
   /** `git worktree list --porcelain` output; defaults to a cwd plus one lane-owned worktree. */
   worktreeList?: string;
   /** `git rev-parse --is-inside-work-tree` answer; a lane whose cwd is not a checkout gets "false". */
@@ -110,6 +112,7 @@ export const fakeRunner =
       return ok(typeof w.dirty === "string" ? w.dirty : (w.dirty[argv[2] ?? ""] ?? ""));
     if (cmd === "git" && argv.includes("rev-list"))
       return ok(typeof w.aheadCount === "string" ? w.aheadCount : (w.aheadCount[argv[2] ?? ""] ?? "0"));
+    if (cmd === "git" && argv.includes("remote")) return ok(w.remotes ?? "origin");
     if (cmd === "git") return ok();
     if (cmd === "gh" && a1 === "pr")
       return ok(

@@ -26,14 +26,24 @@ export const originalBrief = (text: string): string => {
   return brief.slice(start === -1 || start > foot ? 0 : start + BRIEF_START.length + 1, foot).replace(/\s*$/, "");
 };
 
-export const footer = (lane: Lane, leadPane: string, identities: DoriConfig["repoIdentities"] = {}): string =>
-  [
+export const footer = (
+  lane: Lane,
+  leadPane: string,
+  identities: DoriConfig["repoIdentities"] = {},
+  git?: DoriConfig["git"],
+): string => {
+  const base = git?.baseBranch ?? "main";
+  const branch = `${git?.branchPrefix ?? ""}${lane.key}`;
+  return [
     "",
     FOOTER_START,
     FOOTER_HEADING,
     `- Key: ${lane.key}. Work thread: ${lane.thread}.`,
     `- Done = ${lane.done}. The lane closes only when every signal reads back live.`,
     `- Persist each milestone, blocker, question, halt and completion with ${CLI} report ${lane.key} --kind milestone|blocker|question|halted|done --text "what, with evidence links". It appends reports.jsonl and prints the human [REPORT] line; send that line to pane ${leadPane || "(lead pane)"} as an argv array, never a shell string.`,
+    `- Work on the task branch \`${branch}\` in this repository. Commit there; never commit directly to \`${base}\`.`,
+    `- When the work is ready: run ${CLI} pr open ${lane.key} --branch ${branch} --base ${base} --summary "one line". It runs the configured tests and writes a local PR summary, printing PR_OPEN and PR_SUMMARY. Send both lines to pane ${leadPane || "(lead pane)"} and wait; never merge yourself. The lead merges only after the owner approves.`,
+    `- The local Done signal is \`local-merged ${branch} base=${base}\`. The lane closes only when every signal reads back live.`,
     ...(Object.keys(identities).length
       ? [
           "- Before committing, set the repository's identity below for that command only; never change the global Git identity. For a repository not listed, ask the lead for its identity before the first commit.",
@@ -43,14 +53,14 @@ export const footer = (lane: Lane, leadPane: string, identities: DoriConfig["rep
           ),
         ]
       : []),
-    `- Before claiming PR work done, run ${CLI} verify-pr <owner/repo> <number>. A PR with source fix commits must change a test or carry a "No test: <reason>" line in its body; a fix commit without its own test is a warning. Run the printed UI test loop at the reported head before calling those tests stable.`,
     `- After each completed step: ${CLI} checkpoint ${lane.key} --step <unique-step> --result <result> --evidence <path-or-URL> [--remote-effect <completed-push/merge/deploy-receipt>] (one flag per receipt).`,
     `- On resume, run ${CLI} checkpoints ${lane.key} before doing work. Never repeat a recorded remote side effect. If a crash may have happened between the remote action and checkpoint, read the live remote receipt first and use the service's idempotency key; a local journal cannot make that remote action atomic.`,
     `- Supervision ceilings: ${JSON.stringify(lane.budget ?? {})}. A breach marks blocked and alerts; it never kills the agent. Report a blocker and wait for the lead's decision rather than overriding the ceiling.`,
-    `- When done: ${CLI} claim-done ${lane.key} --evidence "<merge SHA, closed issue, version>". See references/done-protocol.md.`,
+    `- When done: ${CLI} claim-done ${lane.key} --evidence "<PR summary path, head SHA, merge receipt>". See references/done-protocol.md.`,
     FOOTER_END,
     "",
   ].join("\n");
+};
 
 export const quoteForPane = (arg: string): string =>
   /^[\w./:@=-]+$/.test(arg) ? arg : `'${arg.replace(/'/g, `'\\''`)}'`;

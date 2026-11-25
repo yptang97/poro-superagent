@@ -13,6 +13,17 @@ export type Hooks = {
   readonly transcribe?: ArgvTemplate;
 };
 
+/** The local-git flow: task branch, local PR summary, owner approval, merge into the base branch. */
+export type GitConfig = {
+  /** Absolute repo roots or worktree parents the Dori may land in; empty means no restriction. */
+  readonly repos: readonly string[];
+  readonly baseBranch: string;
+  readonly branchPrefix: string;
+  readonly pull: boolean;
+  readonly mergeMode: "no-ff" | "ff-only" | "squash";
+  readonly testCommand?: ArgvTemplate;
+};
+
 export type GuardThresholds = {
   readonly loadAlert: number;
   readonly loadOk: number;
@@ -48,6 +59,7 @@ export type DoriConfig = {
   /** Expected Git author and committer per lowercase `owner/repo`, for `verify-pr` and the lane footer. */
   readonly repoIdentities: Readonly<Record<string, CommitIdentity>>;
   readonly supervision: SupervisionOptions;
+  readonly git: GitConfig;
 };
 
 export const defaultConfig = (home = homedir()): DoriConfig => ({
@@ -72,6 +84,7 @@ export const defaultConfig = (home = homedir()): DoriConfig => ({
   guard: { loadAlert: 150, loadOk: 80, memFreeMinPct: 20, diskFreeMinGb: 50, panesMax: 20 },
   hooks: {},
   repoIdentities: {},
+  git: { repos: [], baseBranch: "main", branchPrefix: "", pull: true, mergeMode: "no-ff" },
   supervision: {
     hungAfterMinutes: 20,
     staleAfterMinutes: 20,
@@ -105,6 +118,35 @@ const repoIdentities = (value: unknown): Record<string, CommitIdentity> =>
           isIdentity(identity) ? [[repo.toLowerCase(), identity]] : [],
         ),
       );
+
+const MERGE_MODES = new Set(["no-ff", "ff-only", "squash"]);
+const checkGit = (value: unknown): void => {
+  if (value === undefined) return;
+  if (!isRecord(value)) throw new ConfigError("invalid git: expected an object");
+  for (const name of Object.keys(value)) {
+    if (!["repos", "baseBranch", "branchPrefix", "pull", "mergeMode", "testCommand"].includes(name))
+      throw new ConfigError(`invalid git ${name}: unknown setting`);
+  }
+  if (
+    value["repos"] !== undefined &&
+    !(Array.isArray(value["repos"]) && value["repos"].every((p) => typeof p === "string" && p.trim()))
+  )
+    throw new ConfigError("invalid git repos: expected an array of non-empty paths");
+  if (value["baseBranch"] !== undefined && (typeof value["baseBranch"] !== "string" || !value["baseBranch"].trim()))
+    throw new ConfigError("invalid git baseBranch: expected a non-empty string");
+  if (value["branchPrefix"] !== undefined && typeof value["branchPrefix"] !== "string")
+    throw new ConfigError("invalid git branchPrefix: expected a string");
+  if (value["pull"] !== undefined && typeof value["pull"] !== "boolean")
+    throw new ConfigError("invalid git pull: expected true or false");
+  if (value["mergeMode"] !== undefined && !MERGE_MODES.has(String(value["mergeMode"])))
+    throw new ConfigError('invalid git mergeMode: expected "no-ff", "ff-only" or "squash"');
+  if (
+    value["testCommand"] !== undefined &&
+    value["testCommand"] !== null &&
+    !(Array.isArray(value["testCommand"]) && value["testCommand"].every((p) => typeof p === "string" && p))
+  )
+    throw new ConfigError("invalid git testCommand: expected an array of strings or null");
+};
 
 export class ConfigError extends Error {}
 
@@ -174,11 +216,23 @@ export const loadConfig = async (path = configPath(), home = homedir()): Promise
   const raw = (await file.exists()) ? ((await file.json()) as Partial<DoriConfig>) : {};
   checkRuntime(raw.runtime);
   checkSupervision(raw.supervision);
+  checkGit(raw.git);
+  const rawGit = raw.git;
   const merged: DoriConfig = {
     ...base,
     ...raw,
     guard: { ...base.guard, ...raw.guard },
     hooks: { ...base.hooks, ...raw.hooks },
+    git: {
+      ...base.git,
+      ...(rawGit ?? {}),
+      repos: (rawGit?.repos ?? base.git.repos).map((p) => expandHome(p, home)),
+      ...(rawGit?.testCommand === null
+        ? {}
+        : rawGit?.testCommand !== undefined
+          ? { testCommand: rawGit.testCommand }
+          : {}),
+    },
     repoIdentities: repoIdentities(raw.repoIdentities),
     // Only a string is a marker: null or false would quietly turn the goal check off, and an object would never show.
     goalMarker: typeof raw.goalMarker === "string" ? raw.goalMarker : base.goalMarker,
@@ -213,8 +267,16 @@ export const loadConfig = async (path = configPath(), home = homedir()): Promise
     ...merged,
     stateDir: expandHome(process.env["DORI_STATE_DIR"] ?? merged.stateDir, home),
     defaultCwd: expandHome(merged.defaultCwd, home),
+    git: {
+      ...merged.git,
+      repos: merged.git.repos.map((p) => expandHome(p, home)),
+    },
     sessionsDir: expandHome(merged.sessionsDir, home),
-    leadPane: process.env["DORI_LEAD_PANE"] ?? merged.leadPane,
+    leadPane:
+      process.env["DORI_LEAD_PANE"] ||
+      process.env["HERDR_PANE_ID"] ||
+      process.env["HC_TERMINAL_ID"] ||
+      merged.leadPane,
   };
 };
 

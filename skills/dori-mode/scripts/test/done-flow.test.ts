@@ -69,7 +69,7 @@ test("uncommitted tracked changes also block the close", async () => {
   world.dirty = " M src/app.ts";
   await claimDone(at(T0), lane, "merged acme/app#1");
   await watchTick(at(T0 + 6 * MIN));
-  expect((await at(T0).registry.read("demo-lane"))?.objection?.reasons).toEqual([`unpushed work in ${WT}`]);
+  expect((await at(T0).registry.read("demo-lane"))?.objection?.reasons).toEqual([`uncommitted work in ${WT}`]);
   expect(closedVia()).toHaveLength(0);
 });
 
@@ -80,7 +80,7 @@ test("a lane with no worktree of its own is still checked in its cwd", async () 
   world.dirty = " M src/app.ts";
   await claimDone(at(T0), lane, "merged acme/app#1");
   await watchTick(at(T0 + 6 * MIN));
-  expect((await at(T0).registry.read("demo-lane"))?.objection?.reasons).toEqual(["unpushed work in /repo"]);
+  expect((await at(T0).registry.read("demo-lane"))?.objection?.reasons).toEqual(["uncommitted work in /repo"]);
   expect(closedVia()).toHaveLength(0);
 });
 

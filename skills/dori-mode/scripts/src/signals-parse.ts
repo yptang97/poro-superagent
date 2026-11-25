@@ -8,11 +8,13 @@ export type Signal =
       readonly sha256?: string;
       readonly json?: { readonly path: readonly (string | number)[]; readonly value: unknown };
     }
-  | { readonly kind: "url"; readonly url: string; readonly status: number; readonly body?: RegExp };
+  | { readonly kind: "url"; readonly url: string; readonly status: number; readonly body?: RegExp }
+  | { readonly kind: "local-merged"; readonly branch: string; readonly base?: string };
 
 export const UNREADABLE = [
   "unreadable signal; use one of:",
   "merged <owner/repo>#N | closed <owner/repo>#N | published <pkg>@<version>",
+  "local-merged <branch> [base=<branch>]",
   'command ["argv","as","json"] [stdout~"regex"]',
   "file <path> [sha256=<hex>] [json:.a.b=<json value>]",
   'url <http(s) url> [status=200] [body~"regex"]',
@@ -110,6 +112,9 @@ export const parseSignal = (raw: string): Signal => {
   if (gh?.[1] && gh[2] && gh[3]) return { kind: gh[1].toLowerCase() as "merged" | "closed", repo: gh[2], n: gh[3] };
   const pub = /^published\s+(\S+)@(\S+)\s*$/i.exec(s);
   if (pub?.[1] && pub[2]) return { kind: "published", pkg: pub[1], version: pub[2] };
+  const local = /^local-merged\s+(\S+)(?:\s+base=(\S+))?\s*$/i.exec(s);
+  if (local?.[1])
+    return { kind: "local-merged", branch: local[1], ...(local[2] ? { base: local[2] } : {}) };
   const head = /^(command|file|url)\s+/i.exec(s);
   if (!head?.[1]) throw new SignalSyntaxError(UNREADABLE);
   const kind = head[1].toLowerCase();
