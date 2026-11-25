@@ -7,6 +7,7 @@ import { journalCommands, journalErrors } from "./cli-journal.ts";
 import { laneCommands } from "./cli-lanes.ts";
 import { messengerCommands, messengerErrors } from "./cli-messenger.ts";
 import { opsCommands } from "./cli-ops.ts";
+import { replyCommands } from "./cli-reply.ts";
 import { ConfigError, loadConfig } from "./config.ts";
 import type { FlowDeps } from "./done-flow.ts";
 import { GitLocalError } from "./git-local.ts";
@@ -59,6 +60,8 @@ const USAGE = `dori <command> [options]
                                        post, reply or edit a message (tokens from DORI_SLACK_TOKEN or the file DORI_SLACK_TOKEN_FILE names, DORI_TELEGRAM_TOKEN, DORI_DISCORD_TOKEN; Feishu uses DORI_FEISHU_PROFILE)
   react <feishu|discord> --message ID [--to CHANNEL] [--emoji TYPE]
                                        add the emoji reaction marking a message as received (Feishu default Typing, Discord default 👀)
+  reply <REF> --text TEXT              reply where the request came from: feishu:<chat>:<message>, discord:<channel>, discord-thread:<id>
+  finish <REF> --text TEXT [--name N]  a lane's closing note on its own channel; a discord-thread is archived and renamed
   thread start --to CHANNEL --message ID --name NAME
   thread rename|archive|reopen THREAD [--name NAME]
                                        Discord threads: start one on a message, then rename, archive or reopen it
@@ -123,6 +126,7 @@ const commands: Readonly<Record<string, Command>> = {
   ...journalCommands,
   ...laneCommands,
   ...opsCommands,
+  ...replyCommands,
   ...messengerCommands,
   ...gitCommands,
 };

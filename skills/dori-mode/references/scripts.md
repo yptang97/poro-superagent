@@ -48,7 +48,7 @@ Needs: bun 1.3+, herdr or hc, and git. Feishu uses `lark-cli` with a saved app p
 | `git.mergeMode` | `no-ff` | `land`: `no-ff`, `ff-only` or `squash` |
 | `git.testCommand` | none | `pr open`: run in the branch's worktree; a failure refuses the PR and later the merge |
 
-Hooks are argv templates for your messenger CLI. `{thread}`, `{text}` and `{key}` are filled into each argument separately, so the text stays one argument whatever it contains.
+Hooks are argv templates for your messenger CLI. `{thread}`, `{text}` and `{key}` are filled into each argument separately, so the text stays one argument whatever it contains. A lane's `{thread}` is a channel ref (`feishu:<chat>:<message>`, `discord:<channel>` or `discord-thread:<id>`), so the shipped `dori reply` / `dori finish` send every notice back to the channel the job came from.
 
 ## Library modules
 
@@ -175,6 +175,12 @@ Adds the read-receipt reaction. Feishu needs only the message id and defaults to
 
 ### `dori thread start --to CHANNEL --message ID --name NAME` / `thread rename|archive|reopen THREAD [--name NAME]`
 Discord only. `start` opens a thread on a message and prints `THREAD <id>`; the rest change an existing thread and print `THREAD_SET <id>`. The name is where the lead shows the job's state (`[working] …`, `[done] …`).
+
+### `dori reply <REF> --text TEXT`
+Replies where the request came from, so two channels never cross. The ref is `feishu:<chat>:<message>` (a thread reply), `discord:<channel>` (that channel or thread) or `discord-thread:<id>`. A lane records this ref as its `--thread`, and `hooks.threadReply` points here.
+
+### `dori finish <REF> --text TEXT [--name NAME]`
+The closing note on the lane's own channel: `feishu:<chat>:<message>` sends to the chat, `discord:<channel>` posts, and `discord-thread:<id>` posts and then archives the thread (renamed to NAME when given). This is `hooks.threadDone`.
 
 ### `dori presence <slack|discord>`
 Keeps the account shown as online until stopped.

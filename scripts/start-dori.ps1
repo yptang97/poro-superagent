@@ -127,7 +127,7 @@ if ($running.Count -gt 0) {
   $log = Join-Path $logDir 'inbound.log'
   if (Test-Path $log) { Move-Item -Force $log (Join-Path $logDir ("inbound.{0}.log" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))) }
   Start-Process -FilePath $bunPath `
-    -ArgumentList @($cli, 'inbound', 'feishu', '--loop', '0') `
+    -ArgumentList @($cli, 'inbound', 'feishu', '--loop', '1') `
     -WindowStyle Hidden `
     -RedirectStandardOutput $log `
     -RedirectStandardError (Join-Path $logDir 'inbound.err.log') | Out-Null
@@ -179,18 +179,18 @@ if (-not $NoLead -and $herdrUp) {
 
 ## 值守
 1. 立刻挂一个常驻 monitor 盯住 $logDir\inbound.log，只上报以 INBOUND 开头的行。若存在 Discord 渠道，再挂一个盯 $discordLog。
-2. 每收到一条：确认 sender 是主人（配置 $configFile 的 feishu.ownerId）。
-   先给这条消息加"敲键盘"表情，表示已收到：
+2. 每收到一条，只在 INBOUND 行标明的平台回复，绝不用另一个渠道回。
+   飞书（INBOUND feishu <chat> <message_id> ...）：
    "$bunPath" "$cli" react feishu --message <message_id> --emoji Typing
-   再用
-   "$bunPath" "$cli" send feishu --to $chatId --thread <message_id> --text "回复内容"
-   回到同一个会话。
-3. 没有消息时保持安静：不主动开工、不轮询、不自己找活干。
+   "$bunPath" "$cli" send feishu --to <chat> --thread <message_id> --text "回复内容"
+3. 启动 lane 时把来源写进 --thread：feishu:<chat>:<message_id>、discord:<channel> 或 discord-thread:<thread_id>。
+   freshness 与 close 的通知用 dori reply / dori finish 按这个引用回到来源渠道，不要写死飞书。
+4. 没有消息时保持安静：不主动开工、不轮询、不自己找活干。
 $discordBrief
 
 ## 改代码
 - 在任务分支上做，完成后 dori pr open <key> --branch <branch> --base main。
-- 把 PR 摘要发到飞书，等主人明确同意后再 dori pr approve 与 dori land。
+- 把 PR 摘要发回请求来源的那个渠道（飞书或 Discord），等主人明确同意后再 dori pr approve 与 dori land。
 - 绝不自己合入主分支。
 "@
   Set-Content -Path $leadFile -Value $lead -Encoding UTF8
